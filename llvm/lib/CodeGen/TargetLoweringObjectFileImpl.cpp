@@ -291,6 +291,12 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
                     dwarf::DW_EH_PE_sdata4;
     break;
+  // [SRR]: Temporary implementation.
+  case Triple::srrarch:
+    LSDAEncoding = dwarf::DW_EH_PE_absptr;
+    PersonalityEncoding = dwarf::DW_EH_PE_absptr;
+    TTypeEncoding = dwarf::DW_EH_PE_absptr;
+    break;
   default:
     break;
   }

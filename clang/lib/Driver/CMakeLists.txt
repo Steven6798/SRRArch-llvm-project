@@ -38,6 +38,7 @@ add_clang_library(clangDriver
   ToolChains/Arch/PPC.cpp
   ToolChains/Arch/RISCV.cpp
   ToolChains/Arch/Sparc.cpp
+  ToolChains/Arch/SRRArch.cpp
   ToolChains/Arch/SystemZ.cpp
   ToolChains/Arch/VE.cpp
   ToolChains/Arch/X86.cpp

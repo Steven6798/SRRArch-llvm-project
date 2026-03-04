@@ -316,6 +316,11 @@ vyacheslav.levytskyy@intel.com, vyacheslav.levytskyy@gmail.com (email), [Vyaches
 Nathan Gauër \
 brioche@google.com (email), [Keenuts](https://github.com/Keenuts) (GitHub)
 
+#### SRRArch backend
+
+Steven Ramirez Rosa \
+stevenramirez6798@gmail.com (email), [steven6798](https://github.com/steven6798) (GitHub)
+
 #### SystemZ backend
 
 Ulrich Weigand \

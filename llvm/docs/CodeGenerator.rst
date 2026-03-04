@@ -725,7 +725,7 @@ The table below captures a snapshot of object file support in LLVM:
      ================== ========================================================
      ``COFF``            AArch64, ARM, X86
      ``DXContainer``     DirectX
-     ``ELF``             AArch64, AMDGPU, ARM, AVR, BPF, CSKY, Hexagon, Lanai, LoongArch, M86k, MSP430, MIPS, PowerPC, RISCV, SPARC, SystemZ, VE, X86
+     ``ELF``             AArch64, AMDGPU, ARM, AVR, BPF, CSKY, Hexagon, Lanai, LoongArch, M86k, MSP430, MIPS, PowerPC, RISCV, SPARC, SRRArch, SystemZ, VE, X86
      ``GOFF``            SystemZ
      ``MachO``           AArch64, ARM, X86
      ``SPIR-V``          SPIRV

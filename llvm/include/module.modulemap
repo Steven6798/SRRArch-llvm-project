@@ -98,6 +98,7 @@ module LLVM_BinaryFormat {
     textual header "llvm/BinaryFormat/ELFRelocs/RISCV.def"
     textual header "llvm/BinaryFormat/ELFRelocs/RISCV_nonstandard.def"
     textual header "llvm/BinaryFormat/ELFRelocs/Sparc.def"
+    textual header "llvm/BinaryFormat/ELFRelocs/SRRArch.def"
     textual header "llvm/BinaryFormat/ELFRelocs/SystemZ.def"
     textual header "llvm/BinaryFormat/ELFRelocs/VE.def"
     textual header "llvm/BinaryFormat/ELFRelocs/x86_64.def"

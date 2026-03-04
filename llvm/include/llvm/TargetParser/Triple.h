@@ -105,6 +105,7 @@ public:
     kalimba,     // Kalimba: generic kalimba
     shave,       // SHAVE: Movidius vector VLIW processors
     lanai,       // Lanai: Lanai 32-bit
+    srrarch,     // SRRArch: SRRArch 32-bit
     wasm32,      // WebAssembly with 32-bit pointers
     wasm64,      // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
@@ -1131,6 +1132,11 @@ public:
   /// Tests whether the target is SystemZ.
   bool isSystemZ() const {
     return getArch() == Triple::systemz;
+  }
+
+  /// Tests whether the target is SRRArch.
+  bool isSRRArch() const {
+    return getArch() == Triple::srrarch;
   }
 
   /// Tests whether the target is x86 (32- or 64-bit).

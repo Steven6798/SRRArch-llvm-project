@@ -770,6 +770,18 @@ static uint64_t resolveWasm64(uint64_t Type, uint64_t Offset, uint64_t S,
   }
 }
 
+// [SRR]: Temporary implementation.
+static bool supportsSRRArch(uint64_t Type) {
+  return Type == ELF::R_SRRARCH_32;
+}
+
+static uint64_t resolveSRRArch(uint64_t Type, uint64_t Offset, uint64_t S,
+                             uint64_t /*LocData*/, int64_t Addend) {
+  if (Type == ELF::R_SRRARCH_32)
+    return (S + Addend) & 0xFFFFFFFF;
+  llvm_unreachable("Invalid relocation type");
+}
+
 std::pair<SupportsRelocation, RelocationResolver>
 getRelocationResolver(const ObjectFile &Obj) {
   if (Obj.isCOFF()) {
@@ -856,6 +868,8 @@ getRelocationResolver(const ObjectFile &Obj) {
       return {supportsRISCV, resolveRISCV};
     case Triple::csky:
       return {supportsCSKY, resolveCSKY};
+    case Triple::srrarch:
+      return {supportsSRRArch, resolveSRRArch};
     default:
       if (isAMDGPU(Obj))
         return {supportsAmdgpu, resolveAmdgpu};

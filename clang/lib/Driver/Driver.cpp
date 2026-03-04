@@ -47,6 +47,7 @@
 #include "ToolChains/SPIRVOpenMP.h"
 #include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
+#include "ToolChains/SRRArch.h"
 #include "ToolChains/TCE.h"
 #include "ToolChains/UEFI.h"
 #include "ToolChains/VEToolchain.h"
@@ -6977,6 +6978,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::lanai:
         TC = std::make_unique<toolchains::LanaiToolChain>(*this, Target, Args);
+        break;
+      case llvm::Triple::srrarch:
+        TC = std::make_unique<toolchains::SRRArchToolChain>(*this, Target, Args);
         break;
       case llvm::Triple::xcore:
         TC = std::make_unique<toolchains::XCoreToolChain>(*this, Target, Args);

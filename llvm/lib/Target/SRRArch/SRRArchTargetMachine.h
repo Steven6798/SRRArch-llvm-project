@@ -1,0 +1,61 @@
+//===-- SRRArchTargetMachine.h - Define TargetMachine for SRRArch --- C++ ---===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file declares the SRRArch specific subclass of TargetMachine.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef LLVM_LIB_TARGET_SRRARCH_SRRARCHTARGETMACHINE_H
+#define LLVM_LIB_TARGET_SRRARCH_SRRARCHTARGETMACHINE_H
+
+#include "SRRArchISelLowering.h"
+#include "SRRArchInstrInfo.h"
+#include "SRRArchSelectionDAGInfo.h"
+#include "SRRArchSubtarget.h"
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
+#include <optional>
+
+namespace llvm {
+
+class SRRArchTargetMachine : public CodeGenTargetMachineImpl {
+  SRRArchSubtarget Subtarget;
+  std::unique_ptr<TargetLoweringObjectFile> TLOF;
+
+public:
+  SRRArchTargetMachine(const Target &TheTarget, const Triple &TargetTriple,
+                     StringRef Cpu, StringRef FeatureString,
+                     const TargetOptions &Options,
+                     std::optional<Reloc::Model> RM,
+                     std::optional<CodeModel::Model> CodeModel,
+                     CodeGenOptLevel OptLevel, bool JIT);
+
+  const SRRArchSubtarget *
+  getSubtargetImpl(const llvm::Function & /*Fn*/) const override {
+    return &Subtarget;
+  }
+
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
+
+  // Pass Pipeline Configuration
+  TargetPassConfig *createPassConfig(PassManagerBase &pass_manager) override;
+
+  TargetLoweringObjectFile *getObjFileLowering() const override {
+    return TLOF.get();
+  }
+
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
+
+  bool isMachineVerifierClean() const override {
+    return false;
+  }
+};
+} // namespace llvm
+
+#endif // LLVM_LIB_TARGET_SRRARCH_SRRARCHTARGETMACHINE_H

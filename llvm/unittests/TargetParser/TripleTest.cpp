@@ -1464,6 +1464,18 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::riscv32, T.getArch());
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
   EXPECT_EQ(Triple::CheriotRTOS, T.getOS());
+
+  T = Triple("srrarch-unknown-unknown");
+  EXPECT_EQ(Triple::srrarch, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("srrarch");
+  EXPECT_EQ(Triple::srrarch, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 }
 
 static std::string Join(StringRef A, StringRef B, StringRef C) {
@@ -1978,6 +1990,11 @@ TEST(TripleTest, BitWidthChecks) {
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_TRUE(T.isArch32Bit());
   EXPECT_FALSE(T.isArch64Bit());
+
+  T.setArch(Triple::srrarch);
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_TRUE(T.isArch32Bit());
+  EXPECT_FALSE(T.isArch64Bit());
 }
 
 TEST(TripleTest, BitWidthArchVariants) {
@@ -2333,6 +2350,10 @@ TEST(TripleTest, EndianArchVariants) {
   EXPECT_TRUE(T.isLittleEndian());
   EXPECT_EQ(Triple::UnknownArch, T.getBigEndianArchVariant().getArch());
   EXPECT_EQ(Triple::dxil, T.getLittleEndianArchVariant().getArch());
+
+  T.setArch(Triple::srrarch);
+  EXPECT_EQ(Triple::UnknownArch, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::srrarch, T.getLittleEndianArchVariant().getArch());
 }
 
 TEST(TripleTest, XROS) {
@@ -3013,6 +3034,8 @@ TEST(TripleTest, DefaultExceptionHandling) {
             Triple("aarch64-pc-windows-msvc").getDefaultExceptionHandling());
   EXPECT_EQ(ExceptionHandling::DwarfCFI,
             Triple("aarch64-pc-windows-elf").getDefaultExceptionHandling());
+  EXPECT_EQ(ExceptionHandling::DwarfCFI,
+            Triple("srrarch-unknown-unknown").getDefaultExceptionHandling());
 }
 
 TEST(TripleTest, NormalizeWindows) {

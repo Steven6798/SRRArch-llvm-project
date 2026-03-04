@@ -1586,6 +1586,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
     AddLanaiTargetArgs(Args, CmdArgs);
     break;
 
+  case llvm::Triple::srrarch:
+    AddSRRArchTargetArgs(Args, CmdArgs);
+    break;
+
   case llvm::Triple::hexagon:
     AddHexagonTargetArgs(Args, CmdArgs);
     break;
@@ -2239,6 +2243,29 @@ void Clang::AddHexagonTargetArgs(const ArgList &Args,
 }
 
 void Clang::AddLanaiTargetArgs(const ArgList &Args,
+                               ArgStringList &CmdArgs) const {
+  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
+    StringRef CPUName = A->getValue();
+
+    CmdArgs.push_back("-target-cpu");
+    CmdArgs.push_back(Args.MakeArgString(CPUName));
+  }
+  if (Arg *A = Args.getLastArg(options::OPT_mregparm_EQ)) {
+    StringRef Value = A->getValue();
+    // Only support mregparm=4 to support old usage. Report error for all other
+    // cases.
+    int Mregparm;
+    if (Value.getAsInteger(10, Mregparm)) {
+      if (Mregparm != 4) {
+        getToolChain().getDriver().Diag(
+            diag::err_drv_unsupported_option_argument)
+            << A->getSpelling() << Value;
+      }
+    }
+  }
+}
+
+void Clang::AddSRRArchTargetArgs(const ArgList &Args,
                                ArgStringList &CmdArgs) const {
   if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
     StringRef CPUName = A->getValue();

@@ -3277,6 +3277,16 @@ def isSPIRV : RuntimeLibcallPredicate<"TT.isSPIRV()">;
 def SPIRVSystemLibrary : SystemRuntimeLibrary<isSPIRV, (add memset, memcpy)>;
 
 //===----------------------------------------------------------------------===//
+// SRRArch Runtime Libcalls
+//===----------------------------------------------------------------------===//
+
+def isSRRArch : RuntimeLibcallPredicate<"TT.isSRRArch()">;
+
+// [SRR]: Temporary implementation.
+// No calls
+def SRRArchSystemLibrary : SystemRuntimeLibrary<isSRRArch, (add)>;
+
+//===----------------------------------------------------------------------===//
 // Windows Runtime Libcalls
 //===----------------------------------------------------------------------===//
 

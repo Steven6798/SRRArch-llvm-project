@@ -601,6 +601,9 @@ createVETargetCodeGenInfo(CodeGenModule &CGM);
 std::unique_ptr<TargetCodeGenInfo>
 createDirectXTargetCodeGenInfo(CodeGenModule &CGM);
 
+std::unique_ptr<TargetCodeGenInfo>
+createSRRArchTargetCodeGenInfo(CodeGenModule &CGM);
+
 enum class WebAssemblyABIKind {
   MVP = 0,
   ExperimentalMV = 1,

@@ -538,6 +538,20 @@ static std::string computeVEDataLayout(const Triple &T) {
   return Ret;
 }
 
+static std::string computeSRRArchDataLayout() {
+  // Data layout (keep in sync with clang/lib/Basic/Targets.cpp)
+  return "e"        // Little endian
+         "-m:e"     // ELF name manging
+         "-p:32:32" // 32-bit pointers, 32 bit aligned
+         "-i8:8"    // 8 bit integers, 8 bit aligned
+         "-i16:16"  // 16 bit integers, 16 bit aligned
+         "-i32:32"  // 32 bit integers, 32 bit aligned
+         "-i64:64"  // 64 bit integers, 64 bit aligned
+         "-a:0:32"  // 32 bit alignment of objects of aggregate type
+         "-n32"     // 32 bit native integer width
+         "-S32";    // 32 bit natural stack alignment
+}
+
 std::string Triple::computeDataLayout(StringRef ABIName) const {
   switch (getArch()) {
   case Triple::arm:
@@ -625,6 +639,8 @@ std::string Triple::computeDataLayout(StringRef ABIName) const {
     return computeWebAssemblyDataLayout(*this);
   case Triple::ve:
     return computeVEDataLayout(*this);
+  case Triple::srrarch:
+    return computeSRRArchDataLayout();
 
   case Triple::amdil:
   case Triple::amdil64:

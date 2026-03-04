@@ -285,6 +285,13 @@ TEST(ELFObjectFileTest, MachineTestForXtensa) {
     checkFormatAndArch(Data, Formats[Idx], Triple::xtensa);
 }
 
+TEST(ELFObjectFileTest, MachineTestForSRRARCH) {
+  std::array<StringRef, 4> Formats = {"elf32-srrarch", "elf32-srrarch",
+                                      "elf64-unknown", "elf64-unknown"};
+  for (auto [Idx, Data] : enumerate(generateData(ELF::EM_SRRARCH)))
+    checkFormatAndArch(Data, Formats[Idx], Triple::srrarch);
+}
+
 TEST(ELFObjectFileTest, CheckOSAndTriple) {
   std::tuple<uint16_t, uint8_t, StringRef> Formats[] = {
       {ELF::EM_AMDGPU, ELF::ELFOSABI_AMDGPU_HSA, "amdgcn-amd-amdhsa"},

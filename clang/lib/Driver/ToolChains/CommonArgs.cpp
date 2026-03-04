@@ -16,6 +16,7 @@
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
+#include "Arch/SRRArch.h"
 #include "Arch/SystemZ.h"
 #include "Arch/VE.h"
 #include "Arch/X86.h"
@@ -809,6 +810,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::lanai:
     return getLanaiTargetCPU(Args);
 
+  case llvm::Triple::srrarch:
+    return srrarch::getSRRArchTargetCPU(D, Args, T);
+
   case llvm::Triple::systemz:
     return systemz::getSystemZTargetCPU(Args, T);
 
@@ -915,6 +919,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::loongarch32:
   case llvm::Triple::loongarch64:
     loongarch::getLoongArchTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::srrarch:
+    srrarch::getSRRArchTargetFeatures(D, Triple, Args, Features);
     break;
   }
 
@@ -3191,6 +3198,8 @@ void tools::addMCModel(const Driver &D, const llvm::opt::ArgList &Args,
       Ok = CM == "small" || CM == "medium" || CM == "large";
     } else if (Triple.getArch() == llvm::Triple::lanai) {
       Ok = llvm::is_contained({"small", "medium", "large"}, CM);
+    } else if (Triple.isSRRArch()) {
+      Ok = CM == "small" || CM == "medium" || CM == "large";
     }
     if (Ok) {
       CmdArgs.push_back(Args.MakeArgString("-mcmodel=" + CM));

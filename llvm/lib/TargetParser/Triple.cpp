@@ -76,6 +76,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case spirv:          return "spirv";
   case spirv32:        return "spirv32";
   case spirv64:        return "spirv64";
+  case srrarch:        return "srrarch";
   case systemz:        return "s390x";
   case tce:            return "tce";
   case tcele:          return "tcele";
@@ -259,6 +260,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case dxil:        return "dx";
 
   case xtensa:      return "xtensa";
+
+  case srrarch:       return "srrarch";
   }
 }
 
@@ -518,6 +521,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
       .Case("loongarch64", loongarch64)
       .Case("dxil", dxil)
       .Case("xtensa", xtensa)
+      .Case("srrarch", srrarch)
       .Default(UnknownArch);
 }
 
@@ -670,6 +674,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
                   "dxilv1.9"},
                  Triple::dxil)
           .Case("xtensa", Triple::xtensa)
+          .Case("srrarch", Triple::srrarch)
           .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -1022,6 +1027,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::sparcv9:
   case Triple::spir64:
   case Triple::spir:
+  case Triple::srrarch:
   case Triple::tce:
   case Triple::tcele:
   case Triple::thumbeb:
@@ -1746,6 +1752,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::sparcel:
   case llvm::Triple::spir:
   case llvm::Triple::spirv32:
+  case llvm::Triple::srrarch:
   case llvm::Triple::tce:
   case llvm::Triple::tcele:
   case llvm::Triple::thumb:
@@ -1856,6 +1863,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::sparcel:
   case Triple::spir:
   case Triple::spirv32:
+  case Triple::srrarch:
   case Triple::tce:
   case Triple::tcele:
   case Triple::thumb:
@@ -1914,6 +1922,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::r600:
   case Triple::shave:
   case Triple::sparcel:
+  case Triple::srrarch:
   case Triple::tce:
   case Triple::tcele:
   case Triple::xcore:
@@ -2131,6 +2140,7 @@ bool Triple::isLittleEndian() const {
   case Triple::spirv:
   case Triple::spirv32:
   case Triple::spirv64:
+  case Triple::srrarch:
   case Triple::tcele:
   case Triple::thumb:
   case Triple::ve:
@@ -2350,7 +2360,7 @@ ExceptionHandling Triple::getDefaultExceptionHandling() const {
   }
 
   if (isAArch64() || isX86() || isPPC() || isMIPS() || isSPARC() || isBPF() ||
-      isRISCV() || isLoongArch())
+      isRISCV() || isLoongArch() || isSRRArch())
     return ExceptionHandling::DwarfCFI;
 
   switch (getArch()) {

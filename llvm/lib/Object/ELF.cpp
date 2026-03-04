@@ -183,6 +183,13 @@ StringRef llvm::object::getELFRelocationTypeName(uint32_t Machine,
       break;
     }
     break;
+  case ELF::EM_SRRARCH:
+    switch (Type) {
+#include "llvm/BinaryFormat/ELFRelocs/SRRArch.def"
+    default:
+      break;
+    }
+    break;
   default:
     break;
   }
@@ -248,6 +255,8 @@ uint32_t llvm::object::getELFRelativeRelocationType(uint32_t Machine) {
     break;
   case ELF::EM_LOONGARCH:
     return ELF::R_LARCH_RELATIVE;
+  case ELF::EM_SRRARCH: // [SRR]: Temporary implementation.
+    break;
   default:
     break;
   }
