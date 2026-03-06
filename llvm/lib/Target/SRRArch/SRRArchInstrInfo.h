@@ -1,4 +1,4 @@
-//===- SRRArchInstrInfo.h - SRRArch Instruction Information ---------*- C++ -*-===//
+//===- SRRArchInstrInfo.h - SRRArch Instruction Information ------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,8 +13,8 @@
 #ifndef LLVM_LIB_TARGET_SRRARCH_SRRARCHINSTRINFO_H
 #define LLVM_LIB_TARGET_SRRARCH_SRRARCHINSTRINFO_H
 
-#include "SRRArchRegisterInfo.h"
 #include "MCTargetDesc/SRRArchMCTargetDesc.h"
+#include "SRRArchRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 
 #define GET_INSTRINFO_HEADER
@@ -81,12 +81,6 @@ public:
                                     int64_t &Offset, LocationSize &Width,
                                     const TargetRegisterInfo *TRI) const;
 
-  std::pair<unsigned, unsigned>
-  decomposeMachineOperandsTargetFlags(unsigned TF) const override;
-
-  ArrayRef<std::pair<unsigned, const char *>>
-  getSerializableDirectMachineOperandTargetFlags() const override;
-
   bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TrueBlock,
                      MachineBasicBlock *&FalseBlock,
                      SmallVectorImpl<MachineOperand> &Condition,
@@ -117,8 +111,9 @@ public:
   //
   //   Result = SELECT Cond, TrueOp, FalseOp
   //
-  // SRRArch can optimize certain select instructions, for example by predicating
-  // the instruction defining one of the operands and sets Optimizable to true.
+  // SRRArch can optimize certain select instructions, for example by
+  // predicating the instruction defining one of the operands and sets
+  // Optimizable to true.
   bool analyzeSelect(const MachineInstr &MI,
                      SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
                      unsigned &FalseOp, bool &Optimizable) const override;
@@ -141,51 +136,9 @@ public:
 
   unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TrueBlock,
                         MachineBasicBlock *FalseBlock,
-                        ArrayRef<MachineOperand> Condition,
-                        const DebugLoc &DL,
+                        ArrayRef<MachineOperand> Condition, const DebugLoc &DL,
                         int *BytesAdded = nullptr) const override;
 };
-
-static inline bool isSPLSOpcode(unsigned Opcode) {
-  switch (Opcode) {
-  case SRRArch::LDBs_RI:
-  case SRRArch::LDBz_RI:
-  case SRRArch::LDHs_RI:
-  case SRRArch::LDHz_RI:
-  case SRRArch::STB_RI:
-  case SRRArch::STH_RI:
-    return true;
-  default:
-    return false;
-  }
-}
-
-static inline bool isRMOpcode(unsigned Opcode) {
-  switch (Opcode) {
-  case SRRArch::LDW_RI:
-  case SRRArch::SW_RI:
-    return true;
-  default:
-    return false;
-  }
-}
-
-static inline bool isRRMOpcode(unsigned Opcode) {
-  switch (Opcode) {
-  case SRRArch::LDBs_RR:
-  case SRRArch::LDBz_RR:
-  case SRRArch::LDHs_RR:
-  case SRRArch::LDHz_RR:
-  case SRRArch::LDWz_RR:
-  case SRRArch::LDW_RR:
-  case SRRArch::STB_RR:
-  case SRRArch::STH_RR:
-  case SRRArch::SW_RR:
-    return true;
-  default:
-    return false;
-  }
-}
 
 } // namespace llvm
 

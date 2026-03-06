@@ -1,4 +1,5 @@
-//===- SRRArchRegisterInfo.h - SRRArch Register Information Impl ----*- C++ -*-===//
+//===- SRRArchRegisterInfo.h - SRRArch Register Information Impl ----*- C++
+//-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the SRRArch implementation of the TargetRegisterInfo class.
+// This file contains the SRRArch implementation of the TargetRegisterInfo
+// class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,10 +41,8 @@ struct SRRArchRegisterInfo : public SRRArchGenRegisterInfo {
                            RegScavenger *RS = nullptr) const override;
 
   // Debug information queries.
-  unsigned getRARegister() const;
   Register getFrameRegister(const MachineFunction &MF) const override;
   Register getBaseRegister() const;
-  bool hasBasePointer(const MachineFunction &MF) const;
 };
 
 } // end namespace llvm

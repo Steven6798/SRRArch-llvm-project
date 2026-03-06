@@ -1,4 +1,4 @@
-//===-- SRRArchSelectionDAGInfo.cpp - SRRArch SelectionDAG Info -------------===//
+//===-- SRRArchSelectionDAGInfo.cpp - SRRArch SelectionDAG Info -----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,16 +21,3 @@ using namespace llvm;
 
 SRRArchSelectionDAGInfo::SRRArchSelectionDAGInfo()
     : SelectionDAGGenTargetInfo(SRRArchGenSDNodeInfo) {}
-
-SDValue SRRArchSelectionDAGInfo::EmitTargetCodeForMemcpy(
-    SelectionDAG & /*DAG*/, const SDLoc & /*dl*/, SDValue /*Chain*/,
-    SDValue /*Dst*/, SDValue /*Src*/, SDValue Size, Align /*Alignment*/,
-    bool /*isVolatile*/, bool /*AlwaysInline*/,
-    MachinePointerInfo /*DstPtrInfo*/,
-    MachinePointerInfo /*SrcPtrInfo*/) const {
-  ConstantSDNode *ConstantSize = dyn_cast<ConstantSDNode>(Size);
-  if (!ConstantSize)
-    return SDValue();
-
-  return SDValue();
-}

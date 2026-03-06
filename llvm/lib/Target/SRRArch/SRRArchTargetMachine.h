@@ -1,4 +1,4 @@
-//===-- SRRArchTargetMachine.h - Define TargetMachine for SRRArch --- C++ ---===//
+//===-- SRRArchTargetMachine.h - Define TargetMachine for SRRArch --C++ ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,7 +18,6 @@
 #include "SRRArchSelectionDAGInfo.h"
 #include "SRRArchSubtarget.h"
 #include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
-#include <optional>
 
 namespace llvm {
 
@@ -28,11 +27,11 @@ class SRRArchTargetMachine : public CodeGenTargetMachineImpl {
 
 public:
   SRRArchTargetMachine(const Target &TheTarget, const Triple &TargetTriple,
-                     StringRef Cpu, StringRef FeatureString,
-                     const TargetOptions &Options,
-                     std::optional<Reloc::Model> RM,
-                     std::optional<CodeModel::Model> CodeModel,
-                     CodeGenOptLevel OptLevel, bool JIT);
+                       StringRef Cpu, StringRef FeatureString,
+                       const TargetOptions &Options,
+                       std::optional<Reloc::Model> RM,
+                       std::optional<CodeModel::Model> CodeModel,
+                       CodeGenOptLevel OptLevel, bool JIT);
 
   const SRRArchSubtarget *
   getSubtargetImpl(const llvm::Function & /*Fn*/) const override {
@@ -52,9 +51,7 @@ public:
   createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
                             const TargetSubtargetInfo *STI) const override;
 
-  bool isMachineVerifierClean() const override {
-    return false;
-  }
+  bool isMachineVerifierClean() const override { return false; }
 };
 } // namespace llvm
 

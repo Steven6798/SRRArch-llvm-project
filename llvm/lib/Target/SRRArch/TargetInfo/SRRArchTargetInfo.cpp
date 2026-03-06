@@ -1,4 +1,4 @@
-//===-- SRRArchTargetInfo.cpp - SRRArch Target Implementation -----------------===//
+//===-- SRRArchTargetInfo.cpp - SRRArch Target Implementation -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,6 @@
 
 #include "TargetInfo/SRRArchTargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/Compiler.h"
 
 using namespace llvm;
 
@@ -20,5 +19,5 @@ Target &llvm::getTheSRRArchTarget() {
 extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
 LLVMInitializeSRRArchTargetInfo() {
   RegisterTarget<Triple::srrarch> X(getTheSRRArchTarget(), "srrarch", "SRRArch",
-                                  "SRRArch");
+                                    "SRRArch");
 }

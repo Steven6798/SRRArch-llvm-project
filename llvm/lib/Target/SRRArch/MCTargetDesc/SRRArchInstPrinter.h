@@ -1,4 +1,4 @@
-//= SRRArchInstPrinter.h - Convert SRRArch MCInst to asm syntax -------*- C++ -*--//
+//= SRRArchInstPrinter.h - Convert SRRArch MCInst to asm syntax ---*- C++ -*--//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,7 @@ class StringRef;
 class SRRArchInstPrinter : public MCInstPrinter {
 public:
   SRRArchInstPrinter(const MCAsmInfo &MAI, const MCInstrInfo &MII,
-                   const MCRegisterInfo &MRI)
+                     const MCRegisterInfo &MRI)
       : MCInstPrinter(MAI, MII, MRI) {}
 
   void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,

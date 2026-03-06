@@ -1,4 +1,4 @@
-//===-- SRRArchTargetObjectFile.h - SRRArch Object Info -----------------------===//
+//===-- SRRArchTargetObjectFile.h - SRRArch Object Info ----------- C++ ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,33 +12,7 @@
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 
 namespace llvm {
-class SRRArchTargetObjectFile : public TargetLoweringObjectFileELF {
-  MCSection *SmallDataSection;
-  MCSection *SmallBSSSection;
-
-  bool isGlobalInSmallSection(const GlobalObject *GO, const TargetMachine &TM,
-                              SectionKind Kind) const;
-  bool isGlobalInSmallSectionImpl(const GlobalObject *GO,
-                                  const TargetMachine &TM) const;
-
-public:
-  void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
-
-  /// Return true if this global address should be placed into small data/bss
-  /// section.
-  bool isGlobalInSmallSection(const GlobalObject *GO,
-                              const TargetMachine &TM) const;
-
-  MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
-                                    const TargetMachine &TM) const override;
-
-  /// Return true if this constant should be placed into small data section.
-  bool isConstantInSmallSection(const DataLayout &DL, const Constant *CN) const;
-
-  MCSection *getSectionForConstant(const DataLayout &DL, SectionKind Kind,
-                                   const Constant *C,
-                                   Align &Alignment) const override;
-};
+class SRRArchTargetObjectFile : public TargetLoweringObjectFileELF {};
 } // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_SRRARCH_SRRARCHTARGETOBJECTFILE_H

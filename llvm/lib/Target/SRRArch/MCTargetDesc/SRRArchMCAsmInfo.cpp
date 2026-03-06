@@ -1,4 +1,5 @@
-//===-- SRRArchMCAsmInfo.cpp - SRRArch asm properties -----------------------===//
+//===-- SRRArchMCAsmInfo.cpp - SRRArch asm properties
+//-----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,16 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "SRRArchMCAsmInfo.h"
-#include "llvm/MC/MCExpr.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
 void SRRArchMCAsmInfo::anchor() {}
 
 SRRArchMCAsmInfo::SRRArchMCAsmInfo(const Triple & /*TheTriple*/,
-                               const MCTargetOptions &Options) {
+                                   const MCTargetOptions &Options) {
   IsLittleEndian = true;
   PrivateGlobalPrefix = ".L";
   WeakRefDirective = "\t.weak\t";
@@ -41,24 +39,6 @@ SRRArchMCAsmInfo::SRRArchMCAsmInfo(const Triple & /*TheTriple*/,
 }
 
 void SRRArchMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
-                                        const MCSpecifierExpr &Expr) const {
-  if (Expr.getSpecifier() == 0) {
-    printExpr(OS, *Expr.getSubExpr());
-    return;
-  }
-
-  switch (Expr.getSpecifier()) {
-  default:
-    llvm_unreachable("Invalid kind!");
-  case SRRArch::S_ABS_HI:
-    OS << "hi";
-    break;
-  case SRRArch::S_ABS_LO:
-    OS << "lo";
-    break;
-  }
-
-  OS << '(';
-  printExpr(OS, *Expr.getSubExpr());
-  OS << ')';
+                                          const MCSpecifierExpr &Expr) const {
+  llvm_unreachable("printSpecifierExpr not implemented yet");
 }

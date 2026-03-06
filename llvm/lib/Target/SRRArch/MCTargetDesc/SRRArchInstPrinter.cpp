@@ -1,4 +1,4 @@
-//===-- SRRArchInstPrinter.cpp - Convert SRRArch MCInst to asm syntax ---------===//
+//===-- SRRArchInstPrinter.cpp - Convert SRRArch MCInst to asm syntax -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,14 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "SRRArchInstPrinter.h"
-#include "SRRArchAluCode.h"
-#include "SRRArchCondCode.h"
 #include "MCTargetDesc/SRRArchMCTargetDesc.h"
-#include "llvm/MC/MCAsmInfo.h"
-#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCSymbol.h"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -29,273 +23,73 @@ using namespace llvm;
 #include "SRRArchGenAsmWriter.inc"
 
 void SRRArchInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) {
-  OS << StringRef(getRegisterName(Reg)).lower();
+  llvm_unreachable("printRegName not implemented yet");
 }
 
 bool SRRArchInstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
-                                 StringRef Alias, unsigned OpNo0,
-                                 unsigned OpNo1) {
-  OS << "\t" << Alias << " ";
-  printOperand(MI, OpNo0, OS);
-  OS << ", ";
-  printOperand(MI, OpNo1, OS);
-  return true;
-}
-
-static bool usesGivenOffset(const MCInst *MI, int AddOffset) {
-  unsigned AluCode = MI->getOperand(3).getImm();
-  return LPAC::encodeSRRArchAluCode(AluCode) == LPAC::ADD &&
-         (MI->getOperand(2).getImm() == AddOffset ||
-          MI->getOperand(2).getImm() == -AddOffset);
-}
-
-static bool isPreIncrementForm(const MCInst *MI, int AddOffset) {
-  unsigned AluCode = MI->getOperand(3).getImm();
-  return LPAC::isPreOp(AluCode) && usesGivenOffset(MI, AddOffset);
-}
-
-static bool isPostIncrementForm(const MCInst *MI, int AddOffset) {
-  unsigned AluCode = MI->getOperand(3).getImm();
-  return LPAC::isPostOp(AluCode) && usesGivenOffset(MI, AddOffset);
-}
-
-static StringRef decIncOperator(const MCInst *MI) {
-  if (MI->getOperand(2).getImm() < 0)
-    return "--";
-  return "++";
-}
-
-bool SRRArchInstPrinter::printMemoryLoadIncrement(const MCInst *MI,
-                                                raw_ostream &OS,
-                                                StringRef Opcode,
-                                                int AddOffset) {
-  if (isPreIncrementForm(MI, AddOffset)) {
-    OS << "\t" << Opcode << "\t[" << decIncOperator(MI) << "%"
-       << getRegisterName(MI->getOperand(1).getReg()) << "], %"
-       << getRegisterName(MI->getOperand(0).getReg());
-    return true;
-  }
-  if (isPostIncrementForm(MI, AddOffset)) {
-    OS << "\t" << Opcode << "\t[%"
-       << getRegisterName(MI->getOperand(1).getReg()) << decIncOperator(MI)
-       << "], %" << getRegisterName(MI->getOperand(0).getReg());
-    return true;
-  }
-  return false;
-}
-
-bool SRRArchInstPrinter::printMemoryStoreIncrement(const MCInst *MI,
-                                                 raw_ostream &OS,
-                                                 StringRef Opcode,
-                                                 int AddOffset) {
-  if (isPreIncrementForm(MI, AddOffset)) {
-    OS << "\t" << Opcode << "\t%" << getRegisterName(MI->getOperand(0).getReg())
-       << ", [" << decIncOperator(MI) << "%"
-       << getRegisterName(MI->getOperand(1).getReg()) << "]";
-    return true;
-  }
-  if (isPostIncrementForm(MI, AddOffset)) {
-    OS << "\t" << Opcode << "\t%" << getRegisterName(MI->getOperand(0).getReg())
-       << ", [%" << getRegisterName(MI->getOperand(1).getReg())
-       << decIncOperator(MI) << "]";
-    return true;
-  }
+                                   StringRef Alias, unsigned OpNo0,
+                                   unsigned OpNo1) {
+  llvm_unreachable("printInst not implemented yet");
   return false;
 }
 
 bool SRRArchInstPrinter::printAlias(const MCInst *MI, raw_ostream &OS) {
-  switch (MI->getOpcode()) {
-  case SRRArch::LDW_RI:
-    // ld 4[*%rN], %rX => ld [++imm], %rX
-    // ld -4[*%rN], %rX => ld [--imm], %rX
-    // ld 4[%rN*], %rX => ld [imm++], %rX
-    // ld -4[%rN*], %rX => ld [imm--], %rX
-    return printMemoryLoadIncrement(MI, OS, "ld", 4);
-  case SRRArch::LDHs_RI:
-    return printMemoryLoadIncrement(MI, OS, "ld.h", 2);
-  case SRRArch::LDHz_RI:
-    return printMemoryLoadIncrement(MI, OS, "uld.h", 2);
-  case SRRArch::LDBs_RI:
-    return printMemoryLoadIncrement(MI, OS, "ld.b", 1);
-  case SRRArch::LDBz_RI:
-    return printMemoryLoadIncrement(MI, OS, "uld.b", 1);
-  case SRRArch::SW_RI:
-    // st %rX, 4[*%rN] => st %rX, [++imm]
-    // st %rX, -4[*%rN] => st %rX, [--imm]
-    // st %rX, 4[%rN*] => st %rX, [imm++]
-    // st %rX, -4[%rN*] => st %rX, [imm--]
-    return printMemoryStoreIncrement(MI, OS, "st", 4);
-  case SRRArch::STH_RI:
-    return printMemoryStoreIncrement(MI, OS, "st.h", 2);
-  case SRRArch::STB_RI:
-    return printMemoryStoreIncrement(MI, OS, "st.b", 1);
-  default:
-    return false;
-  }
+  llvm_unreachable("printAlias not implemented yet");
 }
 
 void SRRArchInstPrinter::printInst(const MCInst *MI, uint64_t Address,
-                                 StringRef Annotation,
-                                 const MCSubtargetInfo & /*STI*/,
-                                 raw_ostream &OS) {
-  if (!printAlias(MI, OS) && !printAliasInstr(MI, Address, OS))
-    printInstruction(MI, Address, OS);
-  printAnnotation(OS, Annotation);
+                                   StringRef Annotation,
+                                   const MCSubtargetInfo & /*STI*/,
+                                   raw_ostream &OS) {
+  llvm_unreachable("printInst not implemented yet");
 }
 
 void SRRArchInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
-                                    raw_ostream &OS) {
-  const MCOperand &Op = MI->getOperand(OpNo);
-  if (Op.isReg())
-    OS << "%" << getRegisterName(Op.getReg());
-  else if (Op.isImm())
-    OS << formatHex(Op.getImm());
-  else {
-    assert(Op.isExpr() && "Expected an expression");
-    MAI.printExpr(OS, *Op.getExpr());
-  }
+                                      raw_ostream &OS) {
+  llvm_unreachable("printOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printMemImmOperand(const MCInst *MI, unsigned OpNo,
-                                          raw_ostream &OS) {
-  const MCOperand &Op = MI->getOperand(OpNo);
-  if (Op.isImm()) {
-    OS << '[' << formatHex(Op.getImm()) << ']';
-  } else {
-    // Symbolic operand will be lowered to immediate value by linker
-    assert(Op.isExpr() && "Expected an expression");
-    OS << '[';
-    MAI.printExpr(OS, *Op.getExpr());
-    OS << ']';
-  }
+                                            raw_ostream &OS) {
+  llvm_unreachable("printMemImmOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printHi16ImmOperand(const MCInst *MI, unsigned OpNo,
-                                           raw_ostream &OS) {
-  const MCOperand &Op = MI->getOperand(OpNo);
-  if (Op.isImm()) {
-    OS << formatHex(Op.getImm() << 16);
-  } else {
-    // Symbolic operand will be lowered to immediate value by linker
-    assert(Op.isExpr() && "Expected an expression");
-    MAI.printExpr(OS, *Op.getExpr());
-  }
+                                             raw_ostream &OS) {
+  llvm_unreachable("printHi16ImmOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printHi16AndImmOperand(const MCInst *MI, unsigned OpNo,
-                                              raw_ostream &OS) {
-  const MCOperand &Op = MI->getOperand(OpNo);
-  if (Op.isImm()) {
-    OS << formatHex((Op.getImm() << 16) | 0xffff);
-  } else {
-    // Symbolic operand will be lowered to immediate value by linker
-    assert(Op.isExpr() && "Expected an expression");
-    MAI.printExpr(OS, *Op.getExpr());
-  }
+                                                raw_ostream &OS) {
+  llvm_unreachable("printHi16AndImmOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printLo16AndImmOperand(const MCInst *MI, unsigned OpNo,
-                                              raw_ostream &OS) {
-  const MCOperand &Op = MI->getOperand(OpNo);
-  if (Op.isImm()) {
-    OS << formatHex(0xffff0000 | Op.getImm());
-  } else {
-    // Symbolic operand will be lowered to immediate value by linker
-    assert(Op.isExpr() && "Expected an expression");
-    MAI.printExpr(OS, *Op.getExpr());
-  }
-}
-
-static void printMemoryBaseRegister(raw_ostream &OS, const unsigned AluCode,
-                                    const MCOperand &RegOp) {
-  assert(RegOp.isReg() && "Register operand expected");
-  OS << "[";
-  if (LPAC::isPreOp(AluCode))
-    OS << "*";
-  OS << "%" << SRRArchInstPrinter::getRegisterName(RegOp.getReg());
-  if (LPAC::isPostOp(AluCode))
-    OS << "*";
-  OS << "]";
-}
-
-template <unsigned SizeInBits>
-static void printMemoryImmediateOffset(const MCAsmInfo &MAI,
-                                       const MCOperand &OffsetOp,
-                                       raw_ostream &OS) {
-  assert((OffsetOp.isImm() || OffsetOp.isExpr()) && "Immediate expected");
-  if (OffsetOp.isImm()) {
-    assert(isInt<SizeInBits>(OffsetOp.getImm()) && "Constant value truncated");
-    OS << OffsetOp.getImm();
-  } else
-    MAI.printExpr(OS, *OffsetOp.getExpr());
+                                                raw_ostream &OS) {
+  llvm_unreachable("printLo16AndImmOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printMemRiOperand(const MCInst *MI, int OpNo,
-                                         raw_ostream &OS) {
-  const MCOperand &RegOp = MI->getOperand(OpNo);
-  const MCOperand &OffsetOp = MI->getOperand(OpNo + 1);
-  const MCOperand &AluOp = MI->getOperand(OpNo + 2);
-  const unsigned AluCode = AluOp.getImm();
-
-  // Offset
-  printMemoryImmediateOffset<16>(MAI, OffsetOp, OS);
-
-  // Register
-  printMemoryBaseRegister(OS, AluCode, RegOp);
+                                           raw_ostream &OS) {
+  llvm_unreachable("printMemRiOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printMemRrOperand(const MCInst *MI, int OpNo,
-                                         raw_ostream &OS) {
-  const MCOperand &RegOp = MI->getOperand(OpNo);
-  const MCOperand &OffsetOp = MI->getOperand(OpNo + 1);
-  const MCOperand &AluOp = MI->getOperand(OpNo + 2);
-  const unsigned AluCode = AluOp.getImm();
-  assert(OffsetOp.isReg() && RegOp.isReg() && "Registers expected.");
-
-  // [ Base OP Offset ]
-  OS << "[";
-  if (LPAC::isPreOp(AluCode))
-    OS << "*";
-  OS << "%" << getRegisterName(RegOp.getReg());
-  if (LPAC::isPostOp(AluCode))
-    OS << "*";
-  OS << " " << LPAC::srrarchAluCodeToString(AluCode) << " ";
-  OS << "%" << getRegisterName(OffsetOp.getReg());
-  OS << "]";
+                                           raw_ostream &OS) {
+  llvm_unreachable("printMemRrOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printMemSplsOperand(const MCInst *MI, int OpNo,
-                                           raw_ostream &OS) {
-  const MCOperand &RegOp = MI->getOperand(OpNo);
-  const MCOperand &OffsetOp = MI->getOperand(OpNo + 1);
-  const MCOperand &AluOp = MI->getOperand(OpNo + 2);
-  const unsigned AluCode = AluOp.getImm();
-
-  // Offset
-  printMemoryImmediateOffset<10>(MAI, OffsetOp, OS);
-
-  // Register
-  printMemoryBaseRegister(OS, AluCode, RegOp);
+                                             raw_ostream &OS) {
+  llvm_unreachable("printMemSplsOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printCCOperand(const MCInst *MI, int OpNo,
-                                      raw_ostream &OS) {
-  LPCC::CondCode CC =
-      static_cast<LPCC::CondCode>(MI->getOperand(OpNo).getImm());
-  // Handle the undefined value here for printing so we don't abort().
-  if (CC >= LPCC::UNKNOWN)
-    OS << "<und>";
-  else
-    OS << srrarchCondCodeToString(CC);
+                                        raw_ostream &OS) {
+  llvm_unreachable("printCCOperand not implemented yet");
 }
 
 void SRRArchInstPrinter::printPredicateOperand(const MCInst *MI, unsigned OpNo,
-                                             raw_ostream &OS) {
-  LPCC::CondCode CC =
-      static_cast<LPCC::CondCode>(MI->getOperand(OpNo).getImm());
-  // Handle the undefined value here for printing so we don't abort().
-  if (CC >= LPCC::UNKNOWN)
-    OS << "<und>";
-  else if (CC != LPCC::ICC_T)
-    OS << "." << srrarchCondCodeToString(CC);
+                                               raw_ostream &OS) {
+  llvm_unreachable("printPredicateOperand not implemented yet");
 }

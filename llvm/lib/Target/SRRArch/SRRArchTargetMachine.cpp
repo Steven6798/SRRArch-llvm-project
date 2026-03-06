@@ -1,4 +1,4 @@
-//===-- SRRArchTargetMachine.cpp - Define TargetMachine for SRRArch ---------===//
+//===-- SRRArchTargetMachine.cpp - Define TargetMachine for SRRArch -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,14 +27,14 @@
 
 using namespace llvm;
 
-extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSRRArchTarget() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeSRRArchTarget() {
   // Register the target.
   RegisterTargetMachine<SRRArchTargetMachine> registered_target(
       getTheSRRArchTarget());
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeSRRArchAsmPrinterPass(PR);
   initializeSRRArchDAGToDAGISelLegacyPass(PR);
-  initializeSRRArchMemAluCombinerPass(PR);
 }
 
 static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
@@ -64,8 +64,8 @@ SRRArchTargetMachine::getTargetTransformInfo(const Function &F) const {
 MachineFunctionInfo *SRRArchTargetMachine::createMachineFunctionInfo(
     BumpPtrAllocator &Allocator, const Function &F,
     const TargetSubtargetInfo *STI) const {
-  return SRRArchMachineFunctionInfo::create<SRRArchMachineFunctionInfo>(Allocator,
-                                                                    F, STI);
+  return SRRArchMachineFunctionInfo::create<SRRArchMachineFunctionInfo>(
+      Allocator, F, STI);
 }
 
 namespace {
@@ -79,10 +79,7 @@ public:
     return getTM<SRRArchTargetMachine>();
   }
 
-  void addIRPasses() override;
   bool addInstSelector() override;
-  void addPreSched2() override;
-  void addPreEmitPass() override;
 };
 } // namespace
 
@@ -91,26 +88,8 @@ SRRArchTargetMachine::createPassConfig(PassManagerBase &PassManager) {
   return new SRRArchPassConfig(*this, &PassManager);
 }
 
-void SRRArchPassConfig::addIRPasses() {
-  addPass(createAtomicExpandLegacyPass());
-
-  TargetPassConfig::addIRPasses();
-}
-
 // Install an instruction selector pass.
 bool SRRArchPassConfig::addInstSelector() {
   addPass(createSRRArchISelDag(getSRRArchTargetMachine()));
   return false;
-}
-
-// Implemented by targets that want to run passes immediately before
-// machine code is emitted.
-void SRRArchPassConfig::addPreEmitPass() {
-  addPass(createSRRArchDelaySlotFillerPass(getSRRArchTargetMachine()));
-}
-
-// Run passes after prolog-epilog insertion and before the second instruction
-// scheduling pass.
-void SRRArchPassConfig::addPreSched2() {
-  addPass(createSRRArchMemAluCombinerPass());
 }

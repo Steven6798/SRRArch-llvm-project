@@ -1,4 +1,4 @@
-//===-- SRRArchSelectionDAGInfo.h - SRRArch SelectionDAG Info -----*- C++ -*-===//
+//===-- SRRArchSelectionDAGInfo.h - SRRArch SelectionDAG Info ---*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,13 +24,6 @@ namespace llvm {
 class SRRArchSelectionDAGInfo : public SelectionDAGGenTargetInfo {
 public:
   SRRArchSelectionDAGInfo();
-
-  SDValue EmitTargetCodeForMemcpy(SelectionDAG &DAG, const SDLoc &dl,
-                                  SDValue Chain, SDValue Dst, SDValue Src,
-                                  SDValue Size, Align Alignment,
-                                  bool isVolatile, bool AlwaysInline,
-                                  MachinePointerInfo DstPtrInfo,
-                                  MachinePointerInfo SrcPtrInfo) const override;
 };
 
 } // namespace llvm

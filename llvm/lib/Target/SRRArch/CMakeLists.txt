@@ -17,14 +17,12 @@ add_public_tablegen_target(SRRArchCommonTableGen)
 
 add_llvm_target(SRRArchCodeGen
   SRRArchAsmPrinter.cpp
-  SRRArchDelaySlotFiller.cpp
   SRRArchFrameLowering.cpp
   SRRArchInstrInfo.cpp
   SRRArchISelDAGToDAG.cpp
   SRRArchISelLowering.cpp
   SRRArchMachineFunctionInfo.cpp
   SRRArchMCInstLower.cpp
-  SRRArchMemAluCombiner.cpp
   SRRArchRegisterInfo.cpp
   SRRArchSelectionDAGInfo.cpp
   SRRArchSubtarget.cpp

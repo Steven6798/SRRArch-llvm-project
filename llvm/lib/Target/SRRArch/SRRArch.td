@@ -29,7 +29,7 @@ def SRRArchInstrInfo : InstrInfo;
 // SRRArch processors supported.
 //===----------------------------------------------------------------------===//
 
-def : ProcessorModel<"generic", SRRArchSchedModel, []>;
+def : ProcessorModel<"generic", NoSchedModel, []>;
 
 def SRRArchInstPrinter : AsmWriter {
   string AsmWriterClassName  = "InstPrinter";

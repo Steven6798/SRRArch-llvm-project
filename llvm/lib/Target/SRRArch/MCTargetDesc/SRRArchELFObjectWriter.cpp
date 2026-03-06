@@ -1,4 +1,4 @@
-//===-- SRRArchELFObjectWriter.cpp - SRRArch ELF Writer -----------------------===//
+//===-- SRRArchELFObjectWriter.cpp - SRRArch ELF Writer -------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,10 +8,7 @@
 
 #include "MCTargetDesc/SRRArchBaseInfo.h"
 #include "MCTargetDesc/SRRArchFixupKinds.h"
-#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCELFObjectWriter.h"
-#include "llvm/MC/MCObjectWriter.h"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -36,51 +33,15 @@ SRRArchELFObjectWriter::SRRArchELFObjectWriter(uint8_t OSABI)
                               /*HasRelocationAddend_=*/true) {}
 
 unsigned SRRArchELFObjectWriter::getRelocType(const MCFixup &Fixup,
-                                            const MCValue &, bool) const {
-  unsigned Type;
-  unsigned Kind = static_cast<unsigned>(Fixup.getKind());
-  switch (Kind) {
-  case SRRArch::FIXUP_SRRARCH_21:
-    Type = ELF::R_SRRARCH_21;
-    break;
-  case SRRArch::FIXUP_SRRARCH_21_F:
-    Type = ELF::R_SRRARCH_21_F;
-    break;
-  case SRRArch::FIXUP_SRRARCH_25:
-    Type = ELF::R_SRRARCH_25;
-    break;
-  case SRRArch::FIXUP_SRRARCH_32:
-  case FK_Data_4:
-    Type = ELF::R_SRRARCH_32;
-    break;
-  case SRRArch::FIXUP_SRRARCH_HI16:
-    Type = ELF::R_SRRARCH_HI16;
-    break;
-  case SRRArch::FIXUP_SRRARCH_LO16:
-    Type = ELF::R_SRRARCH_LO16;
-    break;
-  case SRRArch::FIXUP_SRRARCH_NONE:
-    Type = ELF::R_SRRARCH_NONE;
-    break;
-
-  default:
-    llvm_unreachable("Invalid fixup kind!");
-  }
-  return Type;
+                                              const MCValue &, bool) const {
+  llvm_unreachable("getRelocType not implemented yet");
+  return 0;
 }
 
 bool SRRArchELFObjectWriter::needsRelocateWithSymbol(const MCValue &,
-                                                   unsigned Type) const {
-  switch (Type) {
-  case ELF::R_SRRARCH_21:
-  case ELF::R_SRRARCH_21_F:
-  case ELF::R_SRRARCH_25:
-  case ELF::R_SRRARCH_32:
-  case ELF::R_SRRARCH_HI16:
-    return true;
-  default:
-    return false;
-  }
+                                                     unsigned Type) const {
+  llvm_unreachable("needsRelocateWithSymbol not implemented yet");
+  return false;
 }
 
 std::unique_ptr<MCObjectTargetWriter>

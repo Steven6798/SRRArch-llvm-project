@@ -1,4 +1,4 @@
-//===-- SRRArchMCTargetDesc.h - SRRArch Target Descriptions ---------*- C++ -*-===//
+//===-- SRRArchMCTargetDesc.h - SRRArch Target Descriptions -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,7 +15,6 @@
 
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/Support/DataTypes.h"
 
 namespace llvm {
 class MCAsmBackend;
@@ -27,13 +26,15 @@ class MCSubtargetInfo;
 class Target;
 
 MCCodeEmitter *createSRRArchMCCodeEmitter(const MCInstrInfo &MCII,
-                                        MCContext &Ctx);
+                                          MCContext &Ctx);
 
-MCAsmBackend *createSRRArchAsmBackend(const Target &T, const MCSubtargetInfo &STI,
-                                    const MCRegisterInfo &MRI,
-                                    const MCTargetOptions &Options);
+MCAsmBackend *createSRRArchAsmBackend(const Target &T,
+                                      const MCSubtargetInfo &STI,
+                                      const MCRegisterInfo &MRI,
+                                      const MCTargetOptions &Options);
 
-std::unique_ptr<MCObjectTargetWriter> createSRRArchELFObjectWriter(uint8_t OSABI);
+std::unique_ptr<MCObjectTargetWriter>
+createSRRArchELFObjectWriter(uint8_t OSABI);
 } // namespace llvm
 
 // Defines symbolic names for SRRArch registers.  This defines a mapping from

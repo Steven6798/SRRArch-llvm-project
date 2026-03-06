@@ -1,4 +1,4 @@
-//===-- SRRArchAsmBackend.cpp - SRRArch Assembler Backend ---------------------===//
+//===-- SRRArchAsmBackend.cpp - SRRArch Assembler Backend -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,38 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SRRArchFixupKinds.h"
 #include "MCTargetDesc/SRRArchMCTargetDesc.h"
+#include "SRRArchFixupKinds.h"
 #include "llvm/MC/MCAsmBackend.h"
-#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
-#include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
-
-// Prepare value for the target space
-static unsigned adjustFixupValue(unsigned Kind, uint64_t Value) {
-  switch (Kind) {
-  case FK_Data_1:
-  case FK_Data_2:
-  case FK_Data_4:
-  case FK_Data_8:
-    return Value;
-  case SRRArch::FIXUP_SRRARCH_21:
-  case SRRArch::FIXUP_SRRARCH_21_F:
-  case SRRArch::FIXUP_SRRARCH_25:
-  case SRRArch::FIXUP_SRRARCH_32:
-  case SRRArch::FIXUP_SRRARCH_HI16:
-  case SRRArch::FIXUP_SRRARCH_LO16:
-    return Value;
-  default:
-    llvm_unreachable("Unknown fixup kind!");
-  }
-}
 
 namespace {
 class SRRArchAsmBackend : public MCAsmBackend {
@@ -60,91 +36,34 @@ public:
 };
 
 bool SRRArchAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
-                                   const MCSubtargetInfo *STI) const {
-  if ((Count % 4) != 0)
-    return false;
-
-  for (uint64_t i = 0; i < Count; i += 4)
-    OS.write("\x15\0\0\0", 4);
-
-  return true;
+                                     const MCSubtargetInfo *STI) const {
+  llvm_unreachable("writeNopData not implemented yet");
+  return false;
 }
 
 void SRRArchAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
-                                 const MCValue &Target, uint8_t *Data,
-                                 uint64_t Value, bool IsResolved) {
-  if (!IsResolved)
-    Asm->getWriter().recordRelocation(F, Fixup, Target, Value);
-
-  MCFixupKind Kind = Fixup.getKind();
-  Value = adjustFixupValue(static_cast<unsigned>(Kind), Value);
-  if (!Value)
-    return; // This value doesn't change the encoding
-
-  // Where in the object and where the number of bytes that need
-  // fixing up
-  unsigned NumBytes = (getFixupKindInfo(Kind).TargetSize + 7) / 8;
-  unsigned FullSize = 4;
-
-  // Grab current value, if any, from bits.
-  uint64_t CurVal = 0;
-
-  // Load instruction and apply value
-  for (unsigned i = 0; i != NumBytes; ++i) {
-    unsigned Idx = (FullSize - 1 - i);
-    CurVal |= static_cast<uint64_t>(static_cast<uint8_t>(Data[Idx])) << (i * 8);
-  }
-
-  uint64_t Mask =
-      (static_cast<uint64_t>(-1) >> (64 - getFixupKindInfo(Kind).TargetSize));
-  CurVal |= Value & Mask;
-
-  // Write out the fixed up bytes back to the code/data bits.
-  for (unsigned i = 0; i != NumBytes; ++i) {
-    unsigned Idx = (FullSize - 1 - i);
-    Data[Idx] = static_cast<uint8_t>((CurVal >> (i * 8)) & 0xff);
-  }
+                                   const MCValue &Target, uint8_t *Data,
+                                   uint64_t Value, bool IsResolved) {
+  llvm_unreachable("applyFixup not implemented yet");
 }
 
 std::unique_ptr<MCObjectTargetWriter>
 SRRArchAsmBackend::createObjectTargetWriter() const {
-  return createSRRArchELFObjectWriter(MCELFObjectTargetWriter::getOSABI(OSType));
+  return createSRRArchELFObjectWriter(
+      MCELFObjectTargetWriter::getOSABI(OSType));
 }
 
 MCFixupKindInfo SRRArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
-  static const MCFixupKindInfo Infos[SRRArch::NumTargetFixupKinds] = {
-      // This table *must* be in same the order of fixup_* kinds in
-      // SRRArchFixupKinds.h.
-      // Note: The number of bits indicated here are assumed to be contiguous.
-      //   This does not hold true for SRRARCH_21 and SRRARCH_21_F which are applied
-      //   to bits 0x7cffff and 0x7cfffc, respectively. Since the 'bits' counts
-      //   here are used only for cosmetic purposes, we set the size to 16 bits
-      //   for these 21-bit relocation as llvm/lib/MC/MCAsmStreamer.cpp checks
-      //   no bits are set in the fixup range.
-      //
-      // name          offset bits flags
-      {"FIXUP_SRRARCH_NONE", 0, 32, 0},
-      {"FIXUP_SRRARCH_21", 16, 16 /*21*/, 0},
-      {"FIXUP_SRRARCH_21_F", 16, 16 /*21*/, 0},
-      {"FIXUP_SRRARCH_25", 7, 25, 0},
-      {"FIXUP_SRRARCH_32", 0, 32, 0},
-      {"FIXUP_SRRARCH_HI16", 16, 16, 0},
-      {"FIXUP_SRRARCH_LO16", 16, 16, 0}};
-
-  if (Kind < FirstTargetFixupKind)
-    return MCAsmBackend::getFixupKindInfo(Kind);
-
-  assert(unsigned(Kind - FirstTargetFixupKind) < SRRArch::NumTargetFixupKinds &&
-         "Invalid kind!");
-  return Infos[Kind - FirstTargetFixupKind];
+  llvm_unreachable("getFixupKindInfo not implemented yet");
+  return MCAsmBackend::getFixupKindInfo(Kind);
 }
 
 } // namespace
 
-MCAsmBackend *llvm::createSRRArchAsmBackend(const Target &T,
-                                          const MCSubtargetInfo &STI,
-                                          const MCRegisterInfo & /*MRI*/,
-                                          const MCTargetOptions & /*Options*/) {
+MCAsmBackend *
+llvm::createSRRArchAsmBackend(const Target &T, const MCSubtargetInfo &STI,
+                              const MCRegisterInfo & /*MRI*/,
+                              const MCTargetOptions & /*Options*/) {
   const Triple &TT = STI.getTargetTriple();
   if (!TT.isOSBinFormatELF())
     llvm_unreachable("OS not supported");

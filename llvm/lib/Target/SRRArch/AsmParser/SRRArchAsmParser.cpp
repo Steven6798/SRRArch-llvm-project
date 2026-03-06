@@ -1,4 +1,4 @@
-//===-- SRRArchAsmParser.cpp - Parse SRRArch assembly to MCInst instructions --===//
+//===-- SRRArchAsmParser.cpp - Parse SRRArch ASM to MCInst instructions ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,35 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SRRArchAluCode.h"
-#include "SRRArchCondCode.h"
-#include "SRRArchInstrInfo.h"
 #include "MCTargetDesc/SRRArchMCAsmInfo.h"
+#include "SRRArchInstrInfo.h"
 #include "TargetInfo/SRRArchTargetInfo.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCExpr.h"
-#include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCParser/AsmLexer.h"
-#include "llvm/MC/MCParser/MCAsmParser.h"
-#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
-#include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
-#include "llvm/Support/SMLoc.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <optional>
 
 using namespace llvm;
 
@@ -52,14 +28,6 @@ class SRRArchAsmParser : public MCTargetAsmParser {
   std::unique_ptr<SRRArchOperand> parseImmediate();
 
   std::unique_ptr<SRRArchOperand> parseIdentifier();
-
-  unsigned parseAluOperator(bool PreOp, bool PostOp);
-
-  // Split the mnemonic stripping conditional code and quantifiers
-  StringRef splitMnemonic(StringRef Name, SMLoc NameLoc,
-                          OperandVector *Operands);
-
-  bool parsePrePost(StringRef Type, int *OffsetValue);
 
   bool parseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -83,7 +51,7 @@ class SRRArchAsmParser : public MCTargetAsmParser {
 
 public:
   SRRArchAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
-                 const MCInstrInfo &MII, const MCTargetOptions &Options)
+                   const MCInstrInfo &MII, const MCTargetOptions &Options)
       : MCTargetAsmParser(Options, STI, MII), Parser(Parser),
         Lexer(Parser.getLexer()), SubtargetInfo(STI) {
     setAvailableFeatures(
@@ -204,382 +172,24 @@ public:
 
   bool isToken() const override { return Kind == TOKEN; }
 
-  bool isBrImm() {
-    if (!isImm())
-      return false;
-
-    // Constant case
-    const MCConstantExpr *MCE = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (!MCE)
-      return true;
-    int64_t Value = MCE->getValue();
-    // Check if value fits in 25 bits with 2 least significant bits 0.
-    return isShiftedUInt<23, 2>(static_cast<int32_t>(Value));
-  }
-
-  bool isBrTarget() { return isBrImm() || isToken(); }
-
-  bool isCallTarget() { return isImm() || isToken(); }
-
-  bool isHiImm16() {
-    if (!isImm())
-      return false;
-
-    // Constant case
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value)) {
-      int64_t Value = ConstExpr->getValue();
-      return Value != 0 && isShiftedUInt<16, 16>(Value);
-    }
-
-    // Symbolic reference expression
-    if (const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(Imm.Value))
-      return SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_HI;
-
-    // Binary expression
-    if (const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(Imm.Value))
-      if (const auto *SymbolRefExpr =
-              dyn_cast<MCSpecifierExpr>(BinaryExpr->getLHS()))
-        return SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_HI;
-
-    return false;
-  }
-
-  bool isHiImm16And() {
-    if (!isImm())
-      return false;
-
-    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (ConstExpr) {
-      int64_t Value = ConstExpr->getValue();
-      // Check if in the form 0xXYZWffff
-      return (Value != 0) && ((Value & ~0xffff0000) == 0xffff);
-    }
-    return false;
-  }
-
-  bool isLoImm16() {
-    if (!isImm())
-      return false;
-
-    // Constant case
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value)) {
-      int64_t Value = ConstExpr->getValue();
-      // Check if value fits in 16 bits
-      return isUInt<16>(static_cast<int32_t>(Value));
-    }
-
-    // Symbolic reference expression
-    if (const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(Imm.Value))
-      return SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_LO;
-
-    // Binary expression
-    if (const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(Imm.Value))
-      if (const auto *SymbolRefExpr =
-              dyn_cast<MCSpecifierExpr>(BinaryExpr->getLHS()))
-        return SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_LO;
-
-    return false;
-  }
-
-  bool isLoImm16Signed() {
-    if (!isImm())
-      return false;
-
-    // Constant case
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value)) {
-      int64_t Value = ConstExpr->getValue();
-      // Check if value fits in 16 bits or value of the form 0xffffxyzw
-      return isInt<16>(static_cast<int32_t>(Value));
-    }
-
-    // Symbolic reference expression
-    if (const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(Imm.Value))
-      return SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_LO;
-
-    // Binary expression
-    if (const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(Imm.Value))
-      if (const auto *SymbolRefExpr =
-              dyn_cast<MCSpecifierExpr>(BinaryExpr->getLHS()))
-        return SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_LO;
-
-    return false;
-  }
-
-  bool isLoImm16And() {
-    if (!isImm())
-      return false;
-
-    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (ConstExpr) {
-      int64_t Value = ConstExpr->getValue();
-      // Check if in the form 0xffffXYZW
-      return ((Value & ~0xffff) == 0xffff0000);
-    }
-    return false;
-  }
-
-  bool isImmShift() {
-    if (!isImm())
-      return false;
-
-    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (!ConstExpr)
-      return false;
-    int64_t Value = ConstExpr->getValue();
-    return (Value >= -31) && (Value <= 31);
-  }
-
-  bool isLoImm21() {
-    if (!isImm())
-      return false;
-
-    // Constant case
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value)) {
-      int64_t Value = ConstExpr->getValue();
-      return isUInt<21>(Value);
-    }
-
-    // Symbolic reference expression
-    if (const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(Imm.Value))
-      return SymbolRefExpr->getSpecifier() == SRRArch::S_None;
-    if (const MCSymbolRefExpr *SymbolRefExpr =
-            dyn_cast<MCSymbolRefExpr>(Imm.Value)) {
-      return SymbolRefExpr->getSpecifier() == 0;
-    }
-
-    // Binary expression
-    if (const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(Imm.Value)) {
-      if (const auto *SymbolRefExpr =
-              dyn_cast<MCSpecifierExpr>(BinaryExpr->getLHS()))
-        return SymbolRefExpr->getSpecifier() == SRRArch::S_None;
-      if (const MCSymbolRefExpr *SymbolRefExpr =
-              dyn_cast<MCSymbolRefExpr>(BinaryExpr->getLHS()))
-        return SymbolRefExpr->getSpecifier() == 0;
-    }
-
-    return false;
-  }
-
-  bool isImm10() {
-    if (!isImm())
-      return false;
-
-    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (!ConstExpr)
-      return false;
-    int64_t Value = ConstExpr->getValue();
-    return isInt<10>(Value);
-  }
-
-  bool isCondCode() {
-    if (!isImm())
-      return false;
-
-    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (!ConstExpr)
-      return false;
-    uint64_t Value = ConstExpr->getValue();
-    // The condition codes are between 0 (ICC_T) and 15 (ICC_LE). If the
-    // unsigned value of the immediate is less than LPCC::UNKNOWN (16) then
-    // value corresponds to a valid condition code.
-    return Value < LPCC::UNKNOWN;
-  }
-
   void addExpr(MCInst &Inst, const MCExpr *Expr) const {
-    // Add as immediates where possible. Null MCExpr = 0
-    if (Expr == nullptr)
-      Inst.addOperand(MCOperand::createImm(0));
-    else if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Expr))
-      Inst.addOperand(
-          MCOperand::createImm(static_cast<int32_t>(ConstExpr->getValue())));
-    else
-      Inst.addOperand(MCOperand::createExpr(Expr));
+    llvm_unreachable("addExpr not implemented yet");
   }
 
   void addRegOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(getReg()));
+    llvm_unreachable("addRegOperands not implemented yet");
   }
 
   void addImmOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
-  }
-
-  void addBrTargetOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
-  }
-
-  void addCallTargetOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
-  }
-
-  void addCondCodeOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
-  }
-
-  void addMemImmOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    const MCExpr *Expr = getMemOffset();
-    addExpr(Inst, Expr);
-  }
-
-  void addMemRegImmOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 3 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(getMemBaseReg()));
-    const MCExpr *Expr = getMemOffset();
-    addExpr(Inst, Expr);
-    Inst.addOperand(MCOperand::createImm(getMemOp()));
-  }
-
-  void addMemRegRegOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 3 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(getMemBaseReg()));
-    assert(getMemOffsetReg() && "Invalid offset");
-    Inst.addOperand(MCOperand::createReg(getMemOffsetReg()));
-    Inst.addOperand(MCOperand::createImm(getMemOp()));
-  }
-
-  void addMemSplsOperands(MCInst &Inst, unsigned N) const {
-    if (isMemRegImm())
-      addMemRegImmOperands(Inst, N);
-    if (isMemRegReg())
-      addMemRegRegOperands(Inst, N);
-  }
-
-  void addImmShiftOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
-  }
-
-  void addImm10Operands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    addExpr(Inst, getImm());
-  }
-
-  void addLoImm16Operands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
-      Inst.addOperand(
-          MCOperand::createImm(static_cast<int32_t>(ConstExpr->getValue())));
-    else if (isa<MCSpecifierExpr>(getImm())) {
-#ifndef NDEBUG
-      const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(getImm());
-      assert(SymbolRefExpr && SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_LO);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else if (isa<MCBinaryExpr>(getImm())) {
-#ifndef NDEBUG
-      const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(getImm());
-      assert(BinaryExpr && isa<MCSpecifierExpr>(BinaryExpr->getLHS()) &&
-             cast<MCSpecifierExpr>(BinaryExpr->getLHS())->getSpecifier() ==
-                 SRRArch::S_ABS_LO);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else
-      assert(false && "Operand type not supported.");
-  }
-
-  void addLoImm16AndOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
-      Inst.addOperand(MCOperand::createImm(ConstExpr->getValue() & 0xffff));
-    else
-      assert(false && "Operand type not supported.");
-  }
-
-  void addHiImm16Operands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
-      Inst.addOperand(MCOperand::createImm(ConstExpr->getValue() >> 16));
-    else if (isa<MCSpecifierExpr>(getImm())) {
-#ifndef NDEBUG
-      const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(getImm());
-      assert(SymbolRefExpr && SymbolRefExpr->getSpecifier() == SRRArch::S_ABS_HI);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else if (isa<MCBinaryExpr>(getImm())) {
-#ifndef NDEBUG
-      const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(getImm());
-      assert(BinaryExpr && isa<MCSpecifierExpr>(BinaryExpr->getLHS()) &&
-             cast<MCSpecifierExpr>(BinaryExpr->getLHS())->getSpecifier() ==
-                 SRRArch::S_ABS_HI);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else
-      assert(false && "Operand type not supported.");
-  }
-
-  void addHiImm16AndOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
-      Inst.addOperand(MCOperand::createImm(ConstExpr->getValue() >> 16));
-    else
-      assert(false && "Operand type not supported.");
-  }
-
-  void addLoImm21Operands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
-      Inst.addOperand(MCOperand::createImm(ConstExpr->getValue() & 0x1fffff));
-    else if (isa<MCSpecifierExpr>(getImm())) {
-#ifndef NDEBUG
-      const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(getImm());
-      assert(SymbolRefExpr && SymbolRefExpr->getSpecifier() == SRRArch::S_None);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else if (isa<MCSymbolRefExpr>(getImm())) {
-#ifndef NDEBUG
-      const MCSymbolRefExpr *SymbolRefExpr =
-          dyn_cast<MCSymbolRefExpr>(getImm());
-      assert(SymbolRefExpr && SymbolRefExpr->getSpecifier() == 0);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else if (isa<MCBinaryExpr>(getImm())) {
-#ifndef NDEBUG
-      const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(getImm());
-      assert(BinaryExpr && isa<MCSpecifierExpr>(BinaryExpr->getLHS()) &&
-             cast<MCSpecifierExpr>(BinaryExpr->getLHS())->getSpecifier() ==
-                 SRRArch::S_None);
-#endif
-      Inst.addOperand(MCOperand::createExpr(getImm()));
-    } else
-      assert(false && "Operand type not supported.");
+    llvm_unreachable("addImmOperands not implemented yet");
   }
 
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
-    switch (Kind) {
-    case IMMEDIATE:
-      OS << "Imm: " << getImm() << "\n";
-      break;
-    case TOKEN:
-      OS << "Token: " << getToken() << "\n";
-      break;
-    case REGISTER:
-      OS << "Reg: %r" << getReg().id() << "\n";
-      break;
-    case MEMORY_IMM:
-      OS << "MemImm: ";
-      MAI.printExpr(OS, *getMemOffset());
-      OS << '\n';
-      break;
-    case MEMORY_REG_IMM:
-      OS << "MemRegImm: " << getMemBaseReg().id() << "+";
-      MAI.printExpr(OS, *getMemOffset());
-      OS << '\n';
-      break;
-    case MEMORY_REG_REG:
-      assert(getMemOffset() == nullptr);
-      OS << "MemRegReg: " << getMemBaseReg().id() << "+"
-         << "%r" << getMemOffsetReg().id() << "\n";
-      break;
-    }
+    llvm_unreachable("print not implemented yet");
   }
 
-  static std::unique_ptr<SRRArchOperand> CreateToken(StringRef Str, SMLoc Start) {
+  static std::unique_ptr<SRRArchOperand> CreateToken(StringRef Str,
+                                                     SMLoc Start) {
     auto Op = std::make_unique<SRRArchOperand>(TOKEN);
     Op->Tok.Data = Str.data();
     Op->Tok.Length = Str.size();
@@ -589,7 +199,7 @@ public:
   }
 
   static std::unique_ptr<SRRArchOperand> createReg(MCRegister Reg, SMLoc Start,
-                                                 SMLoc End) {
+                                                   SMLoc End) {
     auto Op = std::make_unique<SRRArchOperand>(REGISTER);
     Op->Reg.RegNum = Reg;
     Op->StartLoc = Start;
@@ -598,46 +208,11 @@ public:
   }
 
   static std::unique_ptr<SRRArchOperand> createImm(const MCExpr *Value,
-                                                 SMLoc Start, SMLoc End) {
+                                                   SMLoc Start, SMLoc End) {
     auto Op = std::make_unique<SRRArchOperand>(IMMEDIATE);
     Op->Imm.Value = Value;
     Op->StartLoc = Start;
     Op->EndLoc = End;
-    return Op;
-  }
-
-  static std::unique_ptr<SRRArchOperand>
-  MorphToMemImm(std::unique_ptr<SRRArchOperand> Op) {
-    const MCExpr *Imm = Op->getImm();
-    Op->Kind = MEMORY_IMM;
-    Op->Mem.BaseReg = MCRegister();
-    Op->Mem.AluOp = LPAC::ADD;
-    Op->Mem.OffsetReg = 0;
-    Op->Mem.Offset = Imm;
-    return Op;
-  }
-
-  static std::unique_ptr<SRRArchOperand>
-  MorphToMemRegReg(MCRegister BaseReg, std::unique_ptr<SRRArchOperand> Op,
-                   unsigned AluOp) {
-    MCRegister OffsetReg = Op->getReg();
-    Op->Kind = MEMORY_REG_REG;
-    Op->Mem.BaseReg = BaseReg;
-    Op->Mem.AluOp = AluOp;
-    Op->Mem.OffsetReg = OffsetReg;
-    Op->Mem.Offset = nullptr;
-    return Op;
-  }
-
-  static std::unique_ptr<SRRArchOperand>
-  MorphToMemRegImm(MCRegister BaseReg, std::unique_ptr<SRRArchOperand> Op,
-                   unsigned AluOp) {
-    const MCExpr *Imm = Op->getImm();
-    Op->Kind = MEMORY_REG_IMM;
-    Op->Mem.BaseReg = BaseReg;
-    Op->Mem.AluOp = AluOp;
-    Op->Mem.OffsetReg = 0;
-    Op->Mem.Offset = Imm;
     return Op;
   }
 };
@@ -645,39 +220,12 @@ public:
 } // end anonymous namespace
 
 bool SRRArchAsmParser::matchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
-                                             OperandVector &Operands,
-                                             MCStreamer &Out,
-                                             uint64_t &ErrorInfo,
-                                             bool MatchingInlineAsm) {
-  MCInst Inst;
-  SMLoc ErrorLoc;
-
-  switch (MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm)) {
-  case Match_Success:
-    Out.emitInstruction(Inst, SubtargetInfo);
-    Opcode = Inst.getOpcode();
-    return false;
-  case Match_MissingFeature:
-    return Error(IdLoc, "Instruction use requires option to be enabled");
-  case Match_MnemonicFail:
-    return Error(IdLoc, "Unrecognized instruction mnemonic");
-  case Match_InvalidOperand: {
-    ErrorLoc = IdLoc;
-    if (ErrorInfo != ~0U) {
-      if (ErrorInfo >= Operands.size())
-        return Error(IdLoc, "Too few operands for instruction");
-
-      ErrorLoc = ((SRRArchOperand &)*Operands[ErrorInfo]).getStartLoc();
-      if (ErrorLoc == SMLoc())
-        ErrorLoc = IdLoc;
-    }
-    return Error(ErrorLoc, "Invalid operand for instruction");
-  }
-  default:
-    break;
-  }
-
-  llvm_unreachable("Unknown match type detected!");
+                                               OperandVector &Operands,
+                                               MCStreamer &Out,
+                                               uint64_t &ErrorInfo,
+                                               bool MatchingInlineAsm) {
+  llvm_unreachable("matchAndEmitInstruction not implemented yet");
+  return false;
 }
 
 // Both '%rN' and 'rN' are parsed as valid registers. This was done to remain
@@ -712,513 +260,49 @@ SRRArchAsmParser::parseRegister(bool RestoreOnFailure) {
 }
 
 bool SRRArchAsmParser::parseRegister(MCRegister &RegNum, SMLoc &StartLoc,
-                                   SMLoc &EndLoc) {
-  const AsmToken &Tok = getParser().getTok();
-  StartLoc = Tok.getLoc();
-  EndLoc = Tok.getEndLoc();
-  std::unique_ptr<SRRArchOperand> Op = parseRegister(/*RestoreOnFailure=*/false);
-  if (Op != nullptr)
-    RegNum = Op->getReg();
-  return (Op == nullptr);
+                                     SMLoc &EndLoc) {
+  llvm_unreachable("parseIdentifier not implemented yet");
+  return false;
 }
 
 ParseStatus SRRArchAsmParser::tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
-                                             SMLoc &EndLoc) {
-  const AsmToken &Tok = getParser().getTok();
-  StartLoc = Tok.getLoc();
-  EndLoc = Tok.getEndLoc();
-  std::unique_ptr<SRRArchOperand> Op = parseRegister(/*RestoreOnFailure=*/true);
-  if (Op == nullptr)
-    return ParseStatus::NoMatch;
-  Reg = Op->getReg();
-  return ParseStatus::Success;
+                                               SMLoc &EndLoc) {
+  llvm_unreachable("parseIdentifier not implemented yet");
+  return ParseStatus::Failure;
 }
 
 std::unique_ptr<SRRArchOperand> SRRArchAsmParser::parseIdentifier() {
-  SMLoc Start = Parser.getTok().getLoc();
-  SMLoc End = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-  const MCExpr *Res, *RHS = nullptr;
-  auto Kind = SRRArch::S_None;
+  llvm_unreachable("parseIdentifier not implemented yet");
 
-  if (Lexer.getKind() != AsmToken::Identifier)
-    return nullptr;
-
-  StringRef Identifier;
-  if (Parser.parseIdentifier(Identifier))
-    return nullptr;
-
-  // Check if identifier has a modifier
-  if (Identifier.equals_insensitive("hi"))
-    Kind = SRRArch::S_ABS_HI;
-  else if (Identifier.equals_insensitive("lo"))
-    Kind = SRRArch::S_ABS_LO;
-
-  // If the identifier corresponds to a variant then extract the real
-  // identifier.
-  if (Kind != SRRArch::S_None) {
-    if (Lexer.getKind() != AsmToken::LParen) {
-      Error(Lexer.getLoc(), "Expected '('");
-      return nullptr;
-    }
-    Lexer.Lex(); // lex '('
-
-    // Parse identifier
-    if (Parser.parseIdentifier(Identifier))
-      return nullptr;
-  }
-
-  // If addition parse the RHS.
-  if (Lexer.getKind() == AsmToken::Plus && Parser.parseExpression(RHS))
-    return nullptr;
-
-  // For variants parse the final ')'
-  if (Kind != SRRArch::S_None) {
-    if (Lexer.getKind() != AsmToken::RParen) {
-      Error(Lexer.getLoc(), "Expected ')'");
-      return nullptr;
-    }
-    Lexer.Lex(); // lex ')'
-  }
-
-  End = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-  MCSymbol *Sym = getContext().getOrCreateSymbol(Identifier);
-  Res = MCSpecifierExpr::create(Sym, Kind, getContext());
-
-  // Nest if this was an addition
-  if (RHS)
-    Res = MCBinaryExpr::createAdd(Res, RHS, getContext());
-
-  return SRRArchOperand::createImm(Res, Start, End);
+  return nullptr;
 }
 
 std::unique_ptr<SRRArchOperand> SRRArchAsmParser::parseImmediate() {
-  SMLoc Start = Parser.getTok().getLoc();
-  SMLoc End = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-
-  const MCExpr *ExprVal;
-  switch (Lexer.getKind()) {
-  case AsmToken::Identifier:
-    return parseIdentifier();
-  case AsmToken::Plus:
-  case AsmToken::Minus:
-  case AsmToken::Integer:
-  case AsmToken::Dot:
-    if (!Parser.parseExpression(ExprVal))
-      return SRRArchOperand::createImm(ExprVal, Start, End);
-    [[fallthrough]];
-  default:
-    return nullptr;
-  }
-}
-
-static unsigned AluWithPrePost(unsigned AluCode, bool PreOp, bool PostOp) {
-  if (PreOp)
-    return LPAC::makePreOp(AluCode);
-  if (PostOp)
-    return LPAC::makePostOp(AluCode);
-  return AluCode;
-}
-
-unsigned SRRArchAsmParser::parseAluOperator(bool PreOp, bool PostOp) {
-  StringRef IdString;
-  Parser.parseIdentifier(IdString);
-  unsigned AluCode = LPAC::stringToSRRArchAluCode(IdString);
-  if (AluCode == LPAC::UNKNOWN) {
-    Error(Parser.getTok().getLoc(), "Can't parse ALU operator");
-    return 0;
-  }
-  return AluCode;
-}
-
-static int SizeForSuffix(StringRef T) {
-  return StringSwitch<int>(T).EndsWith(".h", 2).EndsWith(".b", 1).Default(4);
-}
-
-bool SRRArchAsmParser::parsePrePost(StringRef Type, int *OffsetValue) {
-  bool PreOrPost = false;
-  if (Lexer.getKind() == Lexer.peekTok(true).getKind()) {
-    PreOrPost = true;
-    if (Lexer.is(AsmToken::Minus))
-      *OffsetValue = -SizeForSuffix(Type);
-    else if (Lexer.is(AsmToken::Plus))
-      *OffsetValue = SizeForSuffix(Type);
-    else
-      return false;
-
-    // Eat the '-' '-' or '+' '+'
-    Parser.Lex();
-    Parser.Lex();
-  } else if (Lexer.is(AsmToken::Star)) {
-    Parser.Lex(); // Eat the '*'
-    PreOrPost = true;
-  }
-
-  return PreOrPost;
-}
-
-bool shouldBeSls(const SRRArchOperand &Op) {
-  // The instruction should be encoded as an SLS if the constant is word
-  // aligned and will fit in 21 bits
-  if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Op.getImm())) {
-    int64_t Value = ConstExpr->getValue();
-    return (Value % 4 == 0) && (Value >= 0) && (Value <= 0x1fffff);
-  }
-  // The instruction should be encoded as an SLS if the operand is a symbolic
-  // reference with no variant.
-  if (const auto *SymbolRefExpr = dyn_cast<MCSpecifierExpr>(Op.getImm()))
-    return SymbolRefExpr->getSpecifier() == SRRArch::S_None;
-  // The instruction should be encoded as an SLS if the operand is a binary
-  // expression with the left-hand side being a symbolic reference with no
-  // variant.
-  if (const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(Op.getImm())) {
-    const auto *LHSSymbolRefExpr =
-        dyn_cast<MCSpecifierExpr>(BinaryExpr->getLHS());
-    return (LHSSymbolRefExpr &&
-            LHSSymbolRefExpr->getSpecifier() == SRRArch::S_None);
-  }
-  return false;
+  llvm_unreachable("parseImmediate not implemented yet");
+  return nullptr;
 }
 
 // Matches memory operand. Returns true if error encountered.
 ParseStatus SRRArchAsmParser::parseMemoryOperand(OperandVector &Operands) {
-  // Try to match a memory operand.
-  // The memory operands are of the form:
-  //  (1)  Register|Immediate|'' '[' '*'? Register '*'? ']' or
-  //                            ^
-  //  (2)  '[' '*'? Register '*'? AluOperator Register ']'
-  //      ^
-  //  (3)  '[' '--'|'++' Register '--'|'++' ']'
-  //
-  //  (4) '[' Immediate ']' (for SLS)
+  llvm_unreachable("parseMemoryOperand not implemented yet");
 
-  // Store the type for use in parsing pre/post increment/decrement operators
-  StringRef Type;
-  if (Operands[0]->isToken())
-    Type = static_cast<SRRArchOperand *>(Operands[0].get())->getToken();
-
-  // Use 0 if no offset given
-  int OffsetValue = 0;
-  MCRegister BaseReg;
-  unsigned AluOp = LPAC::ADD;
-  bool PostOp = false, PreOp = false;
-
-  // Try to parse the offset
-  std::unique_ptr<SRRArchOperand> Op = parseRegister();
-  if (!Op)
-    Op = parseImmediate();
-
-  // Only continue if next token is '['
-  if (Lexer.isNot(AsmToken::LBrac)) {
-    if (!Op)
-      return ParseStatus::NoMatch;
-
-    // The start of this custom parsing overlaps with register/immediate so
-    // consider this as a successful match of an operand of that type as the
-    // token stream can't be rewound to allow them to match separately.
-    Operands.push_back(std::move(Op));
-    return ParseStatus::Success;
-  }
-
-  Parser.Lex(); // Eat the '['.
-  std::unique_ptr<SRRArchOperand> Offset = nullptr;
-  if (Op)
-    Offset.swap(Op);
-
-  // Determine if a pre operation
-  PreOp = parsePrePost(Type, &OffsetValue);
-
-  Op = parseRegister();
-  if (!Op) {
-    if (!Offset) {
-      if ((Op = parseImmediate()) && Lexer.is(AsmToken::RBrac)) {
-        Parser.Lex(); // Eat the ']'
-
-        // Memory address operations aligned to word boundary are encoded as
-        // SLS, the rest as RM.
-        if (shouldBeSls(*Op)) {
-          Operands.push_back(SRRArchOperand::MorphToMemImm(std::move(Op)));
-        } else {
-          if (!Op->isLoImm16Signed())
-            return Error(Parser.getTok().getLoc(),
-                         "Memory address is not word aligned and larger than "
-                         "class RM can handle");
-          Operands.push_back(SRRArchOperand::MorphToMemRegImm(
-              SRRArch::R0, std::move(Op), LPAC::ADD));
-        }
-        return ParseStatus::Success;
-      }
-    }
-
-    return Error(Parser.getTok().getLoc(),
-                 "Unknown operand, expected register or immediate");
-  }
-  BaseReg = Op->getReg();
-
-  // Determine if a post operation
-  if (!PreOp)
-    PostOp = parsePrePost(Type, &OffsetValue);
-
-  // If ] match form (1) else match form (2)
-  if (Lexer.is(AsmToken::RBrac)) {
-    Parser.Lex(); // Eat the ']'.
-    if (!Offset) {
-      SMLoc Start = Parser.getTok().getLoc();
-      SMLoc End =
-          SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-      const MCConstantExpr *OffsetConstExpr =
-          MCConstantExpr::create(OffsetValue, getContext());
-      Offset = SRRArchOperand::createImm(OffsetConstExpr, Start, End);
-    }
-  } else {
-    if (Offset || OffsetValue != 0)
-      return Error(Parser.getTok().getLoc(), "Expected ']'");
-
-    // Parse operator
-    AluOp = parseAluOperator(PreOp, PostOp);
-
-    // Second form requires offset register
-    Offset = parseRegister();
-    if (!BaseReg || Lexer.isNot(AsmToken::RBrac))
-      return Error(Parser.getTok().getLoc(), "Expected ']'");
-    Parser.Lex(); // Eat the ']'.
-  }
-
-  // First form has addition as operator. Add pre- or post-op indicator as
-  // needed.
-  AluOp = AluWithPrePost(AluOp, PreOp, PostOp);
-
-  // Ensure immediate offset is not too large
-  if (Offset->isImm() && !Offset->isLoImm16Signed())
-    return Error(Parser.getTok().getLoc(),
-                 "Memory address is not word aligned and larger than class RM "
-                 "can handle");
-
-  Operands.push_back(
-      Offset->isImm()
-          ? SRRArchOperand::MorphToMemRegImm(BaseReg, std::move(Offset), AluOp)
-          : SRRArchOperand::MorphToMemRegReg(BaseReg, std::move(Offset), AluOp));
-
-  return ParseStatus::Success;
+  return ParseStatus::Failure;
 }
 
 // Looks at a token type and creates the relevant operand from this
 // information, adding to operands.
 // If operand was parsed, returns false, else true.
 ParseStatus SRRArchAsmParser::parseOperand(OperandVector *Operands,
-                                         StringRef Mnemonic) {
-  // Check if the current operand has a custom associated parser, if so, try to
-  // custom parse the operand, or fallback to the general approach.
-  ParseStatus Result = MatchOperandParserImpl(*Operands, Mnemonic);
+                                           StringRef Mnemonic) {
+  llvm_unreachable("parseOperand not implemented yet");
 
-  if (Result.isSuccess())
-    return Result;
-  if (Result.isFailure()) {
-    Parser.eatToEndOfStatement();
-    return Result;
-  }
-
-  // Attempt to parse token as register
-  std::unique_ptr<SRRArchOperand> Op = parseRegister();
-
-  // Attempt to parse token as immediate
-  if (!Op)
-    Op = parseImmediate();
-
-  // If the token could not be parsed then fail
-  if (!Op) {
-    Error(Parser.getTok().getLoc(), "Unknown operand");
-    Parser.eatToEndOfStatement();
-    return ParseStatus::Failure;
-  }
-
-  // Push back parsed operand into list of operands
-  Operands->push_back(std::move(Op));
-
-  return ParseStatus::Success;
-}
-
-// Split the mnemonic into ASM operand, conditional code and instruction
-// qualifier (half-word, byte).
-StringRef SRRArchAsmParser::splitMnemonic(StringRef Name, SMLoc NameLoc,
-                                        OperandVector *Operands) {
-  size_t Next = Name.find('.');
-
-  StringRef Mnemonic = Name;
-
-  bool IsBRR = Mnemonic.consume_back(".r");
-
-  // Match b?? and s?? (BR, BRR, and SCC instruction classes).
-  if (Mnemonic[0] == 'b' ||
-      (Mnemonic[0] == 's' && !Mnemonic.starts_with("sel") &&
-       !Mnemonic.starts_with("st"))) {
-    // Parse instructions with a conditional code. For example, 'bne' is
-    // converted into two operands 'b' and 'ne'.
-    LPCC::CondCode CondCode =
-        LPCC::suffixToSRRArchCondCode(Mnemonic.substr(1, Next));
-    if (CondCode != LPCC::UNKNOWN) {
-      Mnemonic = Mnemonic.slice(0, 1);
-      Operands->push_back(SRRArchOperand::CreateToken(Mnemonic, NameLoc));
-      Operands->push_back(SRRArchOperand::createImm(
-          MCConstantExpr::create(CondCode, getContext()), NameLoc, NameLoc));
-      if (IsBRR) {
-        Operands->push_back(SRRArchOperand::CreateToken(".r", NameLoc));
-      }
-      return Mnemonic;
-    }
-  }
-
-  // Parse other instructions with condition codes (RR instructions).
-  // We ignore .f here and assume they are flag-setting operations, not
-  // conditional codes (except for select instructions where flag-setting
-  // variants are not yet implemented).
-  if (Mnemonic.starts_with("sel") ||
-      (!Mnemonic.ends_with(".f") && !Mnemonic.starts_with("st"))) {
-    LPCC::CondCode CondCode = LPCC::suffixToSRRArchCondCode(Mnemonic);
-    if (CondCode != LPCC::UNKNOWN) {
-      size_t Next = Mnemonic.rfind('.', Name.size());
-      // 'sel' doesn't use a predicate operand whose printer adds the period,
-      // but instead has the period as part of the identifier (i.e., 'sel.' is
-      // expected by the generated matcher). If the mnemonic starts with 'sel'
-      // then include the period as part of the mnemonic, else don't include it
-      // as part of the mnemonic.
-      if (Mnemonic.starts_with("sel")) {
-        Mnemonic = Mnemonic.substr(0, Next + 1);
-      } else {
-        Mnemonic = Mnemonic.substr(0, Next);
-      }
-      Operands->push_back(SRRArchOperand::CreateToken(Mnemonic, NameLoc));
-      Operands->push_back(SRRArchOperand::createImm(
-          MCConstantExpr::create(CondCode, getContext()), NameLoc, NameLoc));
-      return Mnemonic;
-    }
-  }
-
-  Operands->push_back(SRRArchOperand::CreateToken(Mnemonic, NameLoc));
-  if (IsBRR) {
-    Operands->push_back(SRRArchOperand::CreateToken(".r", NameLoc));
-  }
-
-  return Mnemonic;
-}
-
-static bool IsMemoryAssignmentError(const OperandVector &Operands) {
-  // Detects if a memory operation has an erroneous base register modification.
-  // Memory operations are detected by matching the types of operands.
-  //
-  // TODO: This test is focussed on one specific instance (ld/st).
-  // Extend it to handle more cases or be more robust.
-  bool Modifies = false;
-
-  int Offset = 0;
-
-  if (Operands.size() < 5)
-    return false;
-  else if (Operands[0]->isToken() && Operands[1]->isReg() &&
-           Operands[2]->isImm() && Operands[3]->isImm() && Operands[4]->isReg())
-    Offset = 0;
-  else if (Operands[0]->isToken() && Operands[1]->isToken() &&
-           Operands[2]->isReg() && Operands[3]->isImm() &&
-           Operands[4]->isImm() && Operands[5]->isReg())
-    Offset = 1;
-  else
-    return false;
-
-  int PossibleAluOpIdx = Offset + 3;
-  int PossibleBaseIdx = Offset + 1;
-  int PossibleDestIdx = Offset + 4;
-  if (SRRArchOperand *PossibleAluOp =
-          static_cast<SRRArchOperand *>(Operands[PossibleAluOpIdx].get()))
-    if (PossibleAluOp->isImm())
-      if (const MCConstantExpr *ConstExpr =
-              dyn_cast<MCConstantExpr>(PossibleAluOp->getImm()))
-        Modifies = LPAC::modifiesOp(ConstExpr->getValue());
-  return Modifies && Operands[PossibleBaseIdx]->isReg() &&
-         Operands[PossibleDestIdx]->isReg() &&
-         Operands[PossibleBaseIdx]->getReg() ==
-             Operands[PossibleDestIdx]->getReg();
-}
-
-static bool IsRegister(const MCParsedAsmOperand &op) {
-  return static_cast<const SRRArchOperand &>(op).isReg();
-}
-
-static bool MaybePredicatedInst(const OperandVector &Operands) {
-  if (Operands.size() < 4 || !IsRegister(*Operands[1]) ||
-      !IsRegister(*Operands[2]))
-    return false;
-  return StringSwitch<bool>(
-             static_cast<const SRRArchOperand &>(*Operands[0]).getToken())
-      .StartsWith("addc", true)
-      .StartsWith("add", true)
-      .StartsWith("and", true)
-      .StartsWith("sh", true)
-      .StartsWith("subb", true)
-      .StartsWith("sub", true)
-      .StartsWith("or", true)
-      .StartsWith("xor", true)
-      .Default(false);
+  return ParseStatus::Failure;
 }
 
 bool SRRArchAsmParser::parseInstruction(ParseInstructionInfo & /*Info*/,
-                                      StringRef Name, SMLoc NameLoc,
-                                      OperandVector &Operands) {
-  // First operand is token for instruction
-  StringRef Mnemonic = splitMnemonic(Name, NameLoc, &Operands);
-
-  // If there are no more operands, then finish
-  if (Lexer.is(AsmToken::EndOfStatement))
-    return false;
-
-  // Parse first operand
-  if (!parseOperand(&Operands, Mnemonic).isSuccess())
-    return true;
-
-  // If it is a st instruction with one 1 operand then it is a "store true".
-  // Transform <"st"> to <"s">, <LPCC:ICC_T>
-  if (Lexer.is(AsmToken::EndOfStatement) && Name == "st" &&
-      Operands.size() == 2) {
-    Operands.erase(Operands.begin(), Operands.begin() + 1);
-    Operands.insert(Operands.begin(), SRRArchOperand::CreateToken("s", NameLoc));
-    Operands.insert(Operands.begin() + 1,
-                    SRRArchOperand::createImm(
-                        MCConstantExpr::create(LPCC::ICC_T, getContext()),
-                        NameLoc, NameLoc));
-  }
-
-  // If the instruction is a bt instruction with 1 operand (in assembly) then it
-  // is an unconditional branch instruction and the first two elements of
-  // operands need to be merged.
-  if (Lexer.is(AsmToken::EndOfStatement) && Name.starts_with("bt") &&
-      Operands.size() == 3) {
-    Operands.erase(Operands.begin(), Operands.begin() + 2);
-    Operands.insert(Operands.begin(), SRRArchOperand::CreateToken("bt", NameLoc));
-  }
-
-  // Parse until end of statement, consuming commas between operands
-  while (Lexer.isNot(AsmToken::EndOfStatement) && Lexer.is(AsmToken::Comma)) {
-    // Consume comma token
-    Lex();
-
-    // Parse next operand
-    if (!parseOperand(&Operands, Mnemonic).isSuccess())
-      return true;
-  }
-
-  if (IsMemoryAssignmentError(Operands)) {
-    Error(Parser.getTok().getLoc(),
-          "the destination register can't equal the base register in an "
-          "instruction that modifies the base register.");
-    return true;
-  }
-
-  // Insert always true operand for instruction that may be predicated but
-  // are not. Currently the autogenerated parser always expects a predicate.
-  if (MaybePredicatedInst(Operands)) {
-    Operands.insert(Operands.begin() + 1,
-                    SRRArchOperand::createImm(
-                        MCConstantExpr::create(LPCC::ICC_T, getContext()),
-                        NameLoc, NameLoc));
-  }
+                                        StringRef Name, SMLoc NameLoc,
+                                        OperandVector &Operands) {
+  llvm_unreachable("parseInstruction not implemented yet");
 
   return false;
 }

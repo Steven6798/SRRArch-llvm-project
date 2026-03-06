@@ -1,4 +1,4 @@
-//=====-- SRRArchMCAsmInfo.h - SRRArch asm properties -----------*- C++ -*--====//
+//=====-- SRRArchMCAsmInfo.h - SRRArch asm properties ---------*- C++ -*--====//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,7 +23,7 @@ class SRRArchMCAsmInfo : public MCAsmInfoELF {
 
 public:
   explicit SRRArchMCAsmInfo(const Triple &TheTriple,
-                          const MCTargetOptions &Options);
+                            const MCTargetOptions &Options);
   void printSpecifierExpr(raw_ostream &OS,
                           const MCSpecifierExpr &Expr) const override;
 };
