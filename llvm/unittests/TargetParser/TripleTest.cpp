@@ -1993,8 +1993,8 @@ TEST(TripleTest, BitWidthChecks) {
 
   T.setArch(Triple::srrarch);
   EXPECT_FALSE(T.isArch16Bit());
-  EXPECT_TRUE(T.isArch32Bit());
-  EXPECT_FALSE(T.isArch64Bit());
+  EXPECT_FALSE(T.isArch32Bit());
+  EXPECT_TRUE(T.isArch64Bit());
 }
 
 TEST(TripleTest, BitWidthArchVariants) {

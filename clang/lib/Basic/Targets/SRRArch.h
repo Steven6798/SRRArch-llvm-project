@@ -1,4 +1,4 @@
-//===--- SRRArch.h - Declare SRRArch target feature support ---------*- C++ -*-===//
+//===--- SRRArch.h - Declare SRRArch target feature support ------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,7 +29,6 @@ class LLVM_LIBRARY_VISIBILITY SRRArchTargetInfo : public TargetInfo {
     CK_GENERIC,
   } CPU;
 
-  static const TargetInfo::GCCRegAlias GCCRegAliases[];
   static const char *const GCCRegNames[];
 
 public:
@@ -43,12 +42,6 @@ public:
 
     // Set the default CPU to GENERIC
     CPU = CK_GENERIC;
-
-    // Temporary approach to make everything at least word-aligned and allow for
-    // safely casting between pointers with different alignment requirements.
-    // TODO: Remove this when there are no more cast align warnings on the
-    // firmware.
-    // MinGlobalAlign = 32;
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -63,8 +56,6 @@ public:
   bool hasFeature(StringRef Feature) const override;
 
   ArrayRef<const char *> getGCCRegNames() const override;
-
-  ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;

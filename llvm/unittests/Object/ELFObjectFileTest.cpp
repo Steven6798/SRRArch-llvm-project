@@ -286,8 +286,8 @@ TEST(ELFObjectFileTest, MachineTestForXtensa) {
 }
 
 TEST(ELFObjectFileTest, MachineTestForSRRARCH) {
-  std::array<StringRef, 4> Formats = {"elf32-srrarch", "elf32-srrarch",
-                                      "elf64-unknown", "elf64-unknown"};
+  std::array<StringRef, 4> Formats = {"elf32-unknown", "elf32-unknown",
+                                      "elf64-srrarch", "elf64-srrarch"};
   for (auto [Idx, Data] : enumerate(generateData(ELF::EM_SRRARCH)))
     checkFormatAndArch(Data, Formats[Idx], Triple::srrarch);
 }

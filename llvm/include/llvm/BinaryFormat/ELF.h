@@ -325,7 +325,7 @@ enum {
   EM_VE = 251,            // NEC SX-Aurora VE
   EM_CSKY = 252,          // C-SKY 32-bit processor
   EM_LOONGARCH = 258,     // LoongArch
-  EM_SRRARCH = 259,       // SRRArch 32-bit processor
+  EM_SRRARCH = 259,       // SRRArch 64-bit processor
 };
 
 // Object file classes.

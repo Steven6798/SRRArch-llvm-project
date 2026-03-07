@@ -1324,8 +1324,6 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "elf32-loongarch";
     case ELF::EM_XTENSA:
       return "elf32-xtensa";
-    case ELF::EM_SRRARCH:
-      return "elf32-srrarch";
     default:
       return "elf32-unknown";
     }
@@ -1355,6 +1353,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "elf64-ve";
     case ELF::EM_LOONGARCH:
       return "elf64-loongarch";
+    case ELF::EM_SRRARCH:
+      return "elf64-srrarch";
     default:
       return "elf64-unknown";
     }

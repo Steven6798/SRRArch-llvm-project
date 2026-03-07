@@ -1752,7 +1752,6 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::sparcel:
   case llvm::Triple::spir:
   case llvm::Triple::spirv32:
-  case llvm::Triple::srrarch:
   case llvm::Triple::tce:
   case llvm::Triple::tcele:
   case llvm::Triple::thumb:
@@ -1783,6 +1782,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::spirv:
   case llvm::Triple::spir64:
   case llvm::Triple::spirv64:
+  case llvm::Triple::srrarch:
   case llvm::Triple::systemz:
   case llvm::Triple::ve:
   case llvm::Triple::wasm64:
@@ -1831,6 +1831,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::bpfeb:
   case Triple::bpfel:
   case Triple::msp430:
+  case Triple::srrarch:
   case Triple::systemz:
   case Triple::ve:
     T.setArch(UnknownArch);
@@ -1863,7 +1864,6 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::sparcel:
   case Triple::spir:
   case Triple::spirv32:
-  case Triple::srrarch:
   case Triple::tce:
   case Triple::tcele:
   case Triple::thumb:
@@ -1922,7 +1922,6 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::r600:
   case Triple::shave:
   case Triple::sparcel:
-  case Triple::srrarch:
   case Triple::tce:
   case Triple::tcele:
   case Triple::xcore:
@@ -1949,6 +1948,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::sparcv9:
   case Triple::spir64:
   case Triple::spirv64:
+  case Triple::srrarch:
   case Triple::systemz:
   case Triple::ve:
   case Triple::wasm64:
