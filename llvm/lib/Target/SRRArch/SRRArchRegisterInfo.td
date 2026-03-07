@@ -18,13 +18,18 @@ class SRRArchReg<bits<5> num, string n, list<Register> subregs = [],
 }
 
 // Integer registers
-foreach i = 0-4 in {
+foreach i = 0-32 in {
   def R#i : SRRArchReg<i, "r"#i>, DwarfRegNum<[i]>;
 }
 
 // Register classes.
-def GPR : RegisterClass<"SRRArch", [i32], 32,
-    (add
-     R3,
-     R0
-    )>;
+def GPR : RegisterClass<"SRRArch", [i64], 64,
+   (add (sequence "R%i", 20, 31), // callee save
+   (sequence "R%i", 8, 19),       // caller save
+    R4, R5, R6, R7,               // registers for passing arguments
+    R3,                           // return value
+    R2,                           // frame pointer
+    R1,                           // stack pointer
+    R0                            // program counter
+   )>;
+
