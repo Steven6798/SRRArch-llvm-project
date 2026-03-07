@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// SRRArch i64-bit C Calling convention.
-def CC_SRRArchi64 : CallingConv<[
+// SRRArch C Calling convention.
+def CC_SRRArch : CallingConv<[
   // Promote i8/i16 args to i64
   CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 
@@ -22,8 +22,8 @@ def CC_SRRArchi64 : CallingConv<[
   CCAssignToStack<8, 8>
 ]>;
 
-// SRRArch i64-bit C return-value convention.
-def RetCC_SRRArchi64 : CallingConv<[
+// SRRArch C return-value convention.
+def RetCC_SRRArch : CallingConv<[
   // Put return value in register.
   CCIfType<[i64], CCAssignToReg<[R3]>>
 ]>;
