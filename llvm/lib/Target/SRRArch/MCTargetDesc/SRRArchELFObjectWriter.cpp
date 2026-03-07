@@ -29,7 +29,7 @@ protected:
 } // end anonymous namespace
 
 SRRArchELFObjectWriter::SRRArchELFObjectWriter(uint8_t OSABI)
-    : MCELFObjectTargetWriter(/*Is64Bit_=*/false, OSABI, ELF::EM_SRRARCH,
+    : MCELFObjectTargetWriter(/*Is64Bit_=*/true, OSABI, ELF::EM_SRRARCH,
                               /*HasRelocationAddend_=*/true) {}
 
 unsigned SRRArchELFObjectWriter::getRelocType(const MCFixup &Fixup,

@@ -8,8 +8,8 @@
 
 class InstSRRArch<dag outs, dag ins, string asmstr, list<dag> pattern>
     : Instruction {
-  field bits<32> Inst;
-  let Size = 4;
+  field bits<64> Inst;
+  let Size = 8;
 
   let Namespace = "SRRArch";
   let DecoderNamespace = "SRRArch";

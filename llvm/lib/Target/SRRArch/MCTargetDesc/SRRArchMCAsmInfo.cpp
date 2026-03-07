@@ -35,7 +35,7 @@ SRRArchMCAsmInfo::SRRArchMCAsmInfo(const Triple & /*TheTriple*/,
 
   // Set the instruction alignment. Currently used only for address adjustment
   // in dwarf generation.
-  MinInstAlignment = 4;
+  MinInstAlignment = 8;
 }
 
 void SRRArchMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
