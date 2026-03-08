@@ -107,16 +107,15 @@ SRRArchTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   // Analize return values.
   CCInfo.AnalyzeReturn(Outs, RetCC_SRRArch);
 
-  SmallVector<SDValue, 4> RetOps(1, Chain);
-
   // Copy the result values into the output registers.
   for (unsigned i = 0; i != RVLocs.size(); ++i) {
     llvm_unreachable("Return values not supported yet");
   }
 
   unsigned Opc = SRRArchISD::RET_GLUE;
-  return DAG.getNode(Opc, DL, MVT::Other,
-                     ArrayRef<SDValue>(&RetOps[0], RetOps.size()));
+  SDValue ReturnReg =
+      DAG.getRegister(SRRArch::R3, getPointerTy(DAG.getDataLayout()));
+  return DAG.getNode(Opc, DL, MVT::Other, Chain, ReturnReg);
 }
 
 //===----------------------------------------------------------------------===//

@@ -73,7 +73,14 @@ bool SRRArchDAGToDAGISel::SelectInlineAsmMemoryOperand(
 // Select instructions not customized! Used for
 // expanded, promoted and normal instructions
 void SRRArchDAGToDAGISel::Select(SDNode *Node) {
-  llvm_unreachable("Select not implemented yet");
+  // If we have a custom node, we already have selected!
+  if (Node->isMachineOpcode()) {
+    LLVM_DEBUG(errs() << "== "; Node->dump(CurDAG); errs() << "\n");
+    return;
+  }
+
+  // Select the default instruction
+  SelectCode(Node);
 }
 
 // createSRRArchISelDag - This pass converts a legalized DAG into a
