@@ -58,7 +58,13 @@ bool SRRArchAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
 
 //===----------------------------------------------------------------------===//
 void SRRArchAsmPrinter::emitInstruction(const MachineInstr *MI) {
-  llvm_unreachable("emitInstruction not implemented yet");
+  SRRArch_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                          getSubtargetInfo().getFeatureBits());
+  SRRArchMCInstLower MCInstLowering(OutContext, *this);
+  MCSubtargetInfo STI = getSubtargetInfo();
+  MCInst TmpInst;
+  MCInstLowering.Lower(MI, TmpInst);
+  OutStreamer->emitInstruction(TmpInst, STI);
 }
 
 // isBlockOnlyReachableByFallthough - Return true if the basic block has

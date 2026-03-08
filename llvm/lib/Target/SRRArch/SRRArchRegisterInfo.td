@@ -19,7 +19,7 @@ class SRRArchReg<bits<5> num, string n, list<Register> subregs = [],
 
 // Integer registers
 foreach i = 0-32 in {
-  def R#i : SRRArchReg<i, "r"#i>, DwarfRegNum<[i]>;
+  def R#i : SRRArchReg<i, "R"#i>, DwarfRegNum<[i]>;
 }
 
 // Register classes.
