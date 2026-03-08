@@ -138,24 +138,6 @@ unsigned SRRArchInstrInfo::removeBranch(MachineBasicBlock &MBB,
   return 0;
 }
 
-Register SRRArchInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
-                                               int &FrameIndex) const {
-  llvm_unreachable("isLoadFromStackSlot not implemented yet");
-  return 0;
-}
-
-Register SRRArchInstrInfo::isLoadFromStackSlotPostFE(const MachineInstr &MI,
-                                                     int &FrameIndex) const {
-  llvm_unreachable("isLoadFromStackSlotPostFE not implemented yet");
-  return 0;
-}
-
-Register SRRArchInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
-                                              int &FrameIndex) const {
-  llvm_unreachable("isStoreToStackSlot not implemented yet");
-  return 0;
-}
-
 bool SRRArchInstrInfo::getMemOperandWithOffsetWidth(
     const MachineInstr &LdSt, const MachineOperand *&BaseOp, int64_t &Offset,
     LocationSize &Width, const TargetRegisterInfo * /*TRI*/) const {

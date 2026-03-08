@@ -40,15 +40,6 @@ public:
   bool areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
                                        const MachineInstr &MIb) const override;
 
-  Register isLoadFromStackSlot(const MachineInstr &MI,
-                               int &FrameIndex) const override;
-
-  Register isLoadFromStackSlotPostFE(const MachineInstr &MI,
-                                     int &FrameIndex) const override;
-
-  Register isStoreToStackSlot(const MachineInstr &MI,
-                              int &FrameIndex) const override;
-
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,
                    const DebugLoc &DL, Register DestinationRegister,
                    Register SourceRegister, bool KillSource,
