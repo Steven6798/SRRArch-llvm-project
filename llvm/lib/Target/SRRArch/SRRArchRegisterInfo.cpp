@@ -17,7 +17,6 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/RegisterScavenging.h"
 
 #define GET_REGINFO_TARGET_DESC
 #include "SRRArchGenRegisterInfo.inc"
@@ -29,22 +28,22 @@ SRRArchRegisterInfo::SRRArchRegisterInfo()
 
 const uint16_t *
 SRRArchRegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
-  llvm_unreachable("getCalleeSavedRegs not implemented yet");
-  return nullptr;
+  return CSR_SaveList;
 }
 
 BitVector
 SRRArchRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
 
-  llvm_unreachable("getReservedRegs not implemented yet");
+  Reserved.set(SRRArch::R0);
+  Reserved.set(SRRArch::R1);
+  Reserved.set(SRRArch::R2);
+  Reserved.set(SRRArch::R3);
+  Reserved.set(SRRArch::R4);
+  Reserved.set(SRRArch::R5);
+  Reserved.set(SRRArch::R6);
+  Reserved.set(SRRArch::R7);
   return Reserved;
-}
-
-bool SRRArchRegisterInfo::requiresRegisterScavenging(
-    const MachineFunction & /*MF*/) const {
-  llvm_unreachable("requiresRegisterScavenging not implemented yet");
-  return true;
 }
 
 bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
