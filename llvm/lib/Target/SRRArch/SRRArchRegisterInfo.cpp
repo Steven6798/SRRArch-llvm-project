@@ -24,7 +24,10 @@
 using namespace llvm;
 
 SRRArchRegisterInfo::SRRArchRegisterInfo()
-    : SRRArchGenRegisterInfo(SRRArch::R3) {}
+    : SRRArchGenRegisterInfo(SRRArch::R3) {
+  StackPtr = SRRArch::R1;
+  FramePtr = SRRArch::R2;
+}
 
 const uint16_t *
 SRRArchRegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
@@ -55,13 +58,7 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
 Register
 SRRArchRegisterInfo::getFrameRegister(const MachineFunction & /*MF*/) const {
-  llvm_unreachable("getFrameRegister not implemented yet");
-  return 0;
-}
-
-Register SRRArchRegisterInfo::getBaseRegister() const {
-  llvm_unreachable("getBaseRegister not implemented yet");
-  return 0;
+  return FramePtr;
 }
 
 const uint32_t *

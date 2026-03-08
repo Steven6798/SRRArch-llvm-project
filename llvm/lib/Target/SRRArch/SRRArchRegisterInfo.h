@@ -23,6 +23,14 @@
 namespace llvm {
 
 struct SRRArchRegisterInfo : public SRRArchGenRegisterInfo {
+private:
+  /// Physical register used as stack ptr.
+  unsigned StackPtr;
+
+  /// Physical register used as frame ptr.
+  unsigned FramePtr;
+
+public:
   SRRArchRegisterInfo();
 
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
@@ -40,7 +48,7 @@ struct SRRArchRegisterInfo : public SRRArchGenRegisterInfo {
 
   // Debug information queries.
   Register getFrameRegister(const MachineFunction &MF) const override;
-  Register getBaseRegister() const;
+  Register getStackRegister() const { return StackPtr; }
 };
 
 } // end namespace llvm

@@ -21,16 +21,28 @@ using namespace llvm;
 
 void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
                                         MachineBasicBlock &MBB) const {
-  llvm_unreachable("emitPrologue not implemented yet");
+  assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
+
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  unsigned StackSize = MFI.getStackSize();
+  if (StackSize != 0) {
+    llvm_unreachable("Stack object support not implemented yet");
+  }
 }
 
-void SRRArchFrameLowering::emitEpilogue(MachineFunction & /*MF*/,
+void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
                                         MachineBasicBlock &MBB) const {
-  llvm_unreachable("emitEpilogue not implemented yet");
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  unsigned StackSize = MFI.getStackSize();
+  if (StackSize != 0) {
+    llvm_unreachable("Stack object support not implemented yet");
+  }
 }
 
 void SRRArchFrameLowering::determineCalleeSaves(MachineFunction &MF,
                                                 BitVector &SavedRegs,
                                                 RegScavenger *RS) const {
-  llvm_unreachable("determineCalleeSaves not implemented yet");
+  TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 }
