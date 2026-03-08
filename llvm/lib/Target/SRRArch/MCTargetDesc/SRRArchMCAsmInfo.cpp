@@ -20,22 +20,18 @@ void SRRArchMCAsmInfo::anchor() {}
 SRRArchMCAsmInfo::SRRArchMCAsmInfo(const Triple & /*TheTriple*/,
                                    const MCTargetOptions &Options) {
   IsLittleEndian = true;
-  PrivateGlobalPrefix = ".L";
-  WeakRefDirective = "\t.weak\t";
   ExceptionsType = ExceptionHandling::DwarfCFI;
-
-  // SRRArch assembly requires ".section" before ".bss"
   UsesELFSectionDirectiveForBSS = true;
-
-  // Use '!' as comment string to correspond with old toolchain.
-  CommentString = "!";
 
   // Target supports emission of debugging information.
   SupportsDebugInformation = true;
 
-  // Set the instruction alignment. Currently used only for address adjustment
-  // in dwarf generation.
+  Data8bitsDirective = "\t.8bit\t";
+  Data16bitsDirective = "\t.16bit\t";
+  Data32bitsDirective = "\t.32bit\t";
+  Data64bitsDirective = "\t.64bit\t";
   MinInstAlignment = 8;
+  MaxInstLength = 8;
 }
 
 void SRRArchMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
