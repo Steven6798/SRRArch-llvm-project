@@ -9,16 +9,16 @@
 //===----------------------------------------------------------------------===//
 
 // Registers are identified with 5-bit ID numbers.
-class SRRArchReg<bits<5> num, string n, list<Register> subregs = [],
+class SRRArchReg<bits<5> enc, string n, list<Register> subregs = [],
                list<string> altNames = []> : Register<n, altNames> {
-  field bits<5> Num;
-  let Num = num;
+  let HWEncoding{4-0}  = enc;
+  let HWEncoding{15-5} = 0;
   let Namespace = "SRRArch";
   let SubRegs = subregs;
 }
 
 // Integer registers
-foreach i = 0-32 in {
+foreach i = 0-31 in {
   def R#i : SRRArchReg<i, "R"#i>, DwarfRegNum<[i]>;
 }
 
