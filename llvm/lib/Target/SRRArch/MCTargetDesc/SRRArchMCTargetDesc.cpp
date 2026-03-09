@@ -86,7 +86,6 @@ public:
 
   bool evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
                       uint64_t &Target) const override {
-    llvm_unreachable("getMachineOpValue not implemented yet");
     return false;
   }
 };
