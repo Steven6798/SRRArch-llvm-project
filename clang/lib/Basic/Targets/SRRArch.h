@@ -22,7 +22,7 @@ namespace clang {
 namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY SRRArchTargetInfo : public TargetInfo {
-  // Class for SRRArch (32-bit).
+  // Class for SRRArch.
   // The CPU profiles supported by the SRRArch backend
   enum CPUKind {
     CK_NONE,
@@ -35,6 +35,9 @@ public:
   SRRArchTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     resetDataLayout();
+    LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
+    IntMaxType = SignedLong;
+    Int64Type = SignedLong;
 
     // Setting RegParmMax equal to what mregparm was set to in the old
     // toolchain
@@ -67,6 +70,14 @@ public:
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override {
+    return false;
+  }
+
+  ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
+    return {};
+  }
+
+  bool hasInt128Type() const override {
     return false;
   }
 
