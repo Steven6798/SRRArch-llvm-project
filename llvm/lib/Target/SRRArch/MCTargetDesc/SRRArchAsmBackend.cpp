@@ -21,7 +21,7 @@ class SRRArchAsmBackend : public MCAsmBackend {
 
 public:
   SRRArchAsmBackend(const Target &T, Triple::OSType OST)
-      : MCAsmBackend(llvm::endianness::big), OSType(OST) {}
+      : MCAsmBackend(llvm::endianness::little), OSType(OST) {}
 
   void applyFixup(const MCFragment &, const MCFixup &, const MCValue &Target,
                   uint8_t *Data, uint64_t Value, bool IsResolved) override;
@@ -35,16 +35,52 @@ public:
                     const MCSubtargetInfo *STI) const override;
 };
 
+// Prepare value for the target space
+static uint64_t adjustFixupValue(MCFixupKind Kind, uint64_t Value) {
+  switch (Kind) {
+  case FK_Data_1:
+  case FK_Data_2:
+  case FK_Data_4:
+  case FK_Data_8:
+    return Value;
+  default:
+    llvm_unreachable("Unknown fixup kind!");
+  }
+}
+
 bool SRRArchAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
                                      const MCSubtargetInfo *STI) const {
-  llvm_unreachable("writeNopData not implemented yet");
-  return false;
+  for (uint64_t I = 0; I < Count; ++I)
+    OS << char(SRRArch::NOP);
+
+  return true;
 }
 
 void SRRArchAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                    const MCValue &Target, uint8_t *Data,
                                    uint64_t Value, bool IsResolved) {
-  llvm_unreachable("applyFixup not implemented yet");
+  // IsResolved = addReloc(F, Fixup, Target, Value, IsResolved);
+  MCFixupKind Kind = Fixup.getKind();
+  if (mc::isRelocation(Kind))
+    return;
+  MCFixupKindInfo Info = getFixupKindInfo(Kind);
+  if (!Value)
+    return; // Doesn't change encoding.
+  // Apply any target-specific value adjustments.
+  Value = adjustFixupValue(Kind, Value);
+
+  // Shift the value into position.
+  Value <<= Info.TargetOffset;
+
+  unsigned NumBytes = alignTo(Info.TargetSize + Info.TargetOffset, 8) / 8;
+  assert(Fixup.getOffset() + NumBytes <= F.getSize() &&
+         "Invalid fixup offset!");
+
+  // For each byte of the fragment that the fixup touches, mask in the
+  // bits from the fixup value.
+  for (unsigned i = 0; i != NumBytes; ++i) {
+    Data[i] |= uint8_t((Value >> (i * 8)) & 0xff);
+  }
 }
 
 std::unique_ptr<MCObjectTargetWriter>
@@ -54,8 +90,20 @@ SRRArchAsmBackend::createObjectTargetWriter() const {
 }
 
 MCFixupKindInfo SRRArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
-  llvm_unreachable("getFixupKindInfo not implemented yet");
-  return MCAsmBackend::getFixupKindInfo(Kind);
+  static const MCFixupKindInfo Infos[SRRArch::NumTargetFixupKinds] = {
+      // This table *must* be in same the order of fixup_* kinds in
+      // SRRArchFixupKinds.h.
+      // Note: The number of bits indicated here are assumed to be contiguous.
+      //
+      // name          offset bits flags
+      {"FIXUP_SRRARCH_NONE", 0, 32, 0}};
+
+  if (Kind < FirstTargetFixupKind)
+    return MCAsmBackend::getFixupKindInfo(Kind);
+
+  assert(unsigned(Kind - FirstTargetFixupKind) < SRRArch::NumTargetFixupKinds &&
+         "Invalid kind!");
+  return Infos[Kind - FirstTargetFixupKind];
 }
 
 } // namespace

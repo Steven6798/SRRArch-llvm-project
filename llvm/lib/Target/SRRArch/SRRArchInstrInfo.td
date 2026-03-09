@@ -29,6 +29,7 @@ def RetGlue          : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
 // Opcodes
 // -------------------------------------------------------------------------- //
 
+defvar NOP_OPC = 0x00;
 defvar RETURN_OPC = 0x01;
 
 // -------------------------------------------------------------------------- //
@@ -44,4 +45,8 @@ let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
     let Inst{12 - 8}  = Rv;         // Return value reg
     let Inst{63 - 13} = 0;          // Reserved
   }
+}
+
+def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
+  let Inst{7 - 0} = NOP_OPC; // Opcode
 }

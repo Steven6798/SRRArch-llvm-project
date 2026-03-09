@@ -14,17 +14,27 @@
 #include "MCTargetDesc/SRRArchFixupKinds.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/EndianStream.h"
+#include <cassert>
 
 #define DEBUG_TYPE "mccodeemitter"
+
+STATISTIC(MCNumEmitted, "Number of MC instructions emitted");
 
 namespace llvm {
 
 namespace {
 
 class SRRArchMCCodeEmitter : public MCCodeEmitter {
+  MCContext &Ctx;
+
 public:
-  SRRArchMCCodeEmitter(const MCInstrInfo &MCII, MCContext &C) {}
+  SRRArchMCCodeEmitter(const MCInstrInfo &MCII, MCContext &ctx) : Ctx(ctx) {}
   SRRArchMCCodeEmitter(const SRRArchMCCodeEmitter &) = delete;
   void operator=(const SRRArchMCCodeEmitter &) = delete;
   ~SRRArchMCCodeEmitter() override = default;
@@ -56,7 +66,26 @@ public:
 unsigned SRRArchMCCodeEmitter::getMachineOpValue(
     const MCInst &Inst, const MCOperand &MCOp, SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &SubtargetInfo) const {
-  llvm_unreachable("getMachineOpValue not implemented yet");
+  if (MCOp.isReg())
+    return Ctx.getRegisterInfo()->getEncodingValue(MCOp.getReg());
+
+  if (MCOp.isImm())
+    return MCOp.getImm();
+
+  // MCOp must be an expression
+  // assert(MCOp.isExpr());
+  // const MCExpr *Expr = MCOp.getExpr();
+
+  // // Extract the symbolic reference side of a binary expression.
+  // if (Expr->getKind() == MCExpr::Binary) {
+  //   const MCBinaryExpr *BinaryExpr = static_cast<const MCBinaryExpr *>(Expr);
+  //   Expr = BinaryExpr->getLHS();
+  // }
+
+  // assert(isa<MCSpecifierExpr>(Expr) || Expr->getKind() == MCExpr::SymbolRef);
+  // // Push fixup (all info is contained within)
+  // Fixups.push_back(
+  //     MCFixup::create(0, MCOp.getExpr(), MCFixupKind(FixupKind(Expr))));
   return 0;
 }
 
@@ -64,7 +93,11 @@ void SRRArchMCCodeEmitter::encodeInstruction(
     const MCInst &Inst, SmallVectorImpl<char> &CB,
     SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &SubtargetInfo) const {
-  llvm_unreachable("encodeInstruction not implemented yet");
+  // Get instruction encoding and emit it
+  unsigned Value = getBinaryCodeForInstr(Inst, Fixups, SubtargetInfo);
+  ++MCNumEmitted; // Keep track of the number of emitted insns.
+
+  support::endian::write<uint64_t>(CB, Value, llvm::endianness::little);
 }
 
 #include "SRRArchGenMCCodeEmitter.inc"
