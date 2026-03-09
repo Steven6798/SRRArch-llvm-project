@@ -49,6 +49,10 @@ private:
 
   // Instruction Selection not handled by the auto-generated tablgen
   void Select(SDNode *N) override;
+
+  // Support functions for the opcodes of Instruction Selection
+  // not handled by the auto-generated tablgen
+  void selectConstant(SDNode *N);
 };
 
 class SRRArchDAGToDAGISelLegacy : public SelectionDAGISelLegacy {
@@ -79,8 +83,56 @@ void SRRArchDAGToDAGISel::Select(SDNode *Node) {
     return;
   }
 
+  // Instruction Selection not handled by the auto-generated tablegen selection
+  // should be handled here.
+  switch (Node->getOpcode()) {
+  case ISD::Constant:
+    selectConstant(Node);
+    return;
+  default:
+    break;
+  }
+
   // Select the default instruction
   SelectCode(Node);
+}
+
+void SRRArchDAGToDAGISel::selectConstant(SDNode *Node) {
+  ConstantSDNode *ConstNode = cast<ConstantSDNode>(Node);
+  SDLoc DL(Node);
+  EVT VT = Node->getValueType(0);
+  uint64_t Value = ConstNode->getZExtValue();
+  if (Value > INT32_MAX) {
+    // Generate the low 32-bits.
+    uint32_t Low = (Value & 0xFFFFFFFF00000000) >> 32;
+    SDValue LowImm = CurDAG->getTargetConstant(Low, DL, VT);
+    SDValue LowGENINT =
+        SDValue(CurDAG->getMachineNode(SRRArch::GENINT, DL, VT, LowImm), 0);
+
+    // Shift to acomodate the high 32-bits.
+    SDValue ShiftImm = CurDAG->getTargetConstant(32, DL, VT);
+    SDValue ShiftGENINT =
+        SDValue(CurDAG->getMachineNode(SRRArch::GENINT, DL, VT, ShiftImm), 0);
+    SDValue SHL = SDValue(
+        CurDAG->getMachineNode(SRRArch::SHL, DL, VT, LowGENINT, ShiftGENINT),
+        0);
+
+    // Generate the high 32-bits.
+    uint32_t High = Value & 0x00000000FFFFFFFF;
+    SDValue HighImm = CurDAG->getTargetConstant(High, DL, VT);
+    SDValue HighGENINT =
+        SDValue(CurDAG->getMachineNode(SRRArch::GENINT, DL, VT, HighImm), 0);
+
+    // OR to add the high 32-bits.
+    SDNode *OR = CurDAG->getMachineNode(SRRArch::OR, DL, VT, SHL, HighGENINT);
+
+    ReplaceNode(Node, OR);
+  } else {
+    SDValue Imm = CurDAG->getTargetConstant(Value, DL, VT);
+    SDNode *GENINT = CurDAG->getMachineNode(SRRArch::GENINT, DL, VT, Imm);
+
+    ReplaceNode(Node, GENINT);
+  }
 }
 
 // createSRRArchISelDag - This pass converts a legalized DAG into a

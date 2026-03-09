@@ -31,6 +31,10 @@ def RetGlue          : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
 
 defvar NOP_OPC = 0x00;
 defvar RETURN_OPC = 0x01;
+defvar GENINT_OPC = 0x02;
+defvar SHL_OPC = 0x03;
+defvar OR_OPC = 0x04;
+defvar MOV_OPC = 0x04;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -49,4 +53,30 @@ let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
 
 def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
   let Inst{7 - 0} = NOP_OPC; // Opcode
+}
+
+def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i32imm:$Imm), "GENINT $Rd, $Imm", []> {
+  bits<5> Rd;
+  bits<32> Imm;
+
+  let Inst{7 - 0}   = GENINT_OPC; // Opcode
+  let Inst{12 - 8}  = Rd;         // Destination register
+  let Inst{44 - 13} = Imm;        // Immediate
+  let Inst{63 - 45} = 0;          // Reserved
+}
+
+def SHL : InstrArith<SHL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
+          "SHL $Rd, $Rs1, $Rs2", []>;
+
+def OR : InstrArith<OR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
+          "OR $Rd, $Rs1, $Rs2", []>;
+
+def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
+  bits<5> Rd;
+  bits<5> Rs1;
+
+  let Inst{7 - 0}   = MOV_OPC;   // Opcode
+  let Inst{12 - 8}  = Rd;    // Destination Register
+  let Inst{17 - 13} = Rs1;   // Source Register 1
+  let Inst{63 - 17} = 0;     // Reserved
 }

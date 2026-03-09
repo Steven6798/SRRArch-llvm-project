@@ -19,3 +19,17 @@ class InstSRRArch<dag outs, dag ins, string asmstr, list<dag> pattern>
   let AsmString = asmstr;
   let Pattern = pattern;
 }
+
+class InstrArith<bits<8> opc,dag outs, dag ins, string asmstr,
+                  list<dag> pattern>
+    : InstSRRArch<outs, ins, asmstr, pattern> {
+  bits<5> Rd;
+  bits<5> Rs1;
+  bits<5> Rs2;
+
+  let Inst{7 - 0}   = opc;   // Opcode
+  let Inst{12 - 8}  = Rd;    // Destination Register
+  let Inst{17 - 13} = Rs1;   // Source Register 1
+  let Inst{22 - 18} = Rs2;   // Source Register 2
+  let Inst{63 - 23} = 0;     // Reserved
+}

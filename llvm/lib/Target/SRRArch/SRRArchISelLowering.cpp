@@ -107,9 +107,16 @@ SRRArchTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   // Analize return values.
   CCInfo.AnalyzeReturn(Outs, RetCC_SRRArch);
 
+  SDValue Glue;
   // Copy the result values into the output registers.
   for (unsigned i = 0; i != RVLocs.size(); ++i) {
-    llvm_unreachable("Return values not supported yet");
+    CCValAssign &VA = RVLocs[i];
+    assert(VA.isRegLoc() && "Can only return in registers!");
+
+    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), OutVals[i], Glue);
+
+    // Guarantee that all emitted copies are stuck together with flags.
+    Glue = Chain.getValue(1);
   }
 
   unsigned Opc = SRRArchISD::RET_GLUE;

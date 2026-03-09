@@ -26,7 +26,8 @@ void SRRArchInstrInfo::copyPhysReg(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,
     const DebugLoc &DL, Register DestinationRegister, Register SourceRegister,
     bool KillSource, bool RenamableDest, bool RenamableSrc) const {
-  llvm_unreachable("copyPhysReg not implemented yet");
+  BuildMI(MBB, Position, DL, get(SRRArch::MOV), DestinationRegister)
+      .addReg(SourceRegister, getKillRegState(KillSource));
 }
 
 void SRRArchInstrInfo::storeRegToStackSlot(
@@ -48,11 +49,6 @@ void SRRArchInstrInfo::loadRegFromStackSlot(
 bool SRRArchInstrInfo::areMemAccessesTriviallyDisjoint(
     const MachineInstr &MIa, const MachineInstr &MIb) const {
   llvm_unreachable("areMemAccessesTriviallyDisjoint not implemented yet");
-  return false;
-}
-
-bool SRRArchInstrInfo::expandPostRAPseudo(MachineInstr & /*MI*/) const {
-  llvm_unreachable("expandPostRAPseudo not implemented yet");
   return false;
 }
 
