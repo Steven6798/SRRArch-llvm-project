@@ -34,7 +34,7 @@ defvar RETURN_OPC = 0x01;
 defvar GENINT_OPC = 0x02;
 defvar SHL_OPC = 0x03;
 defvar OR_OPC = 0x04;
-defvar MOV_OPC = 0x04;
+defvar MOV_OPC = 0x05;
 
 // -------------------------------------------------------------------------- //
 // Instructions

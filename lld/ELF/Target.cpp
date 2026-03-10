@@ -88,6 +88,8 @@ void elf::setTarget(Ctx &ctx) {
     return setRISCVTargetInfo(ctx);
   case EM_SPARCV9:
     return setSPARCV9TargetInfo(ctx);
+  case EM_SRRARCH:
+    return setSRRArchTargetInfo(ctx);
   case EM_S390:
     return setSystemZTargetInfo(ctx);
   case EM_X86_64:
