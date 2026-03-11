@@ -21,6 +21,9 @@ class BitVector;
 class SRRArchSubtarget;
 
 class SRRArchFrameLowering : public TargetFrameLowering {
+private:
+  void determineFrameLayout(MachineFunction &MF) const;
+
 protected:
   const SRRArchSubtarget &STI;
 
