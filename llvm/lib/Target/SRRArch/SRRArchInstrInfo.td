@@ -25,6 +25,10 @@ def SDT_SRRArchRetGlue  : SDTypeProfile<0,  1, [SDTCisVT<0, i64>]>;
 def RetGlue          : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
                               [SDNPHasChain, SDNPOptInGlue]>;
 
+//===----------------------------------------------------------------------===//
+// Operand and SDNode transformation definitions.
+//===----------------------------------------------------------------------===//
+
 // -------------------------------------------------------------------------- //
 // Opcodes
 // -------------------------------------------------------------------------- //
@@ -69,10 +73,10 @@ def MUL : InstrArith<MUL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
           "MUL $Rd, $Rs1, $Rs2", []>;
 
 def SDIV : InstrArith<SDIV_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SDIV $Rd, $Rs1, $Rs2", []>;
+           "SDIV $Rd, $Rs1, $Rs2", []>;
 
 def UDIV : InstrArith<UDIV_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "UDIV $Rd, $Rs1, $Rs2", []>;
+           "UDIV $Rd, $Rs1, $Rs2", []>;
 
 // -------------------------------------------------------------------------- //
 // Bitwise
@@ -82,7 +86,7 @@ def AND : InstrArith<AND_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
           "AND $Rd, $Rs1, $Rs2", []>;
 
 def OR : InstrArith<OR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "OR $Rd, $Rs1, $Rs2", []>;
+         "OR $Rd, $Rs1, $Rs2", []>;
 
 def XOR : InstrArith<XOR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
           "XOR $Rd, $Rs1, $Rs2", []>;
@@ -105,23 +109,24 @@ def SRL : InstrArith<SRL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
 // -------------------------------------------------------------------------- //
 
 def CMPEQ : InstrArith<CMPEQ_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "CMPEQ $Rd, $Rs1, $Rs2", []>;
+            "CMPEQ $Rd, $Rs1, $Rs2", []>;
 
 def CMPNE : InstrArith<CMPNE_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "CMPNE $Rd, $Rs1, $Rs2", []>;
+            "CMPNE $Rd, $Rs1, $Rs2", []>;
 
 def CMPLT : InstrArith<CMPLT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "CMPLT $Rd, $Rs1, $Rs2", []>;
+            "CMPLT $Rd, $Rs1, $Rs2", []>;
 
 def CMPGT : InstrArith<CMPGT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "CMPGT $Rd, $Rs1, $Rs2", []>;
+            "CMPGT $Rd, $Rs1, $Rs2", []>;
 
 // -------------------------------------------------------------------------- //
 // Memory Access
 // -------------------------------------------------------------------------- //
 
 def STORE : InstrMemory<STORE_OPC, (outs), (ins GPR:$Rd, GPR:$Rs1),
-            "STORE $Rd, $Rs1", []>;
+            "STORE $Rd, $Rs1",
+            [(store (i64 GPR:$Rs1), (i64 tframeindex:$Rd))]>;
 
 def LOAD : InstrMemory<LOAD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1),
            "LOAD $Rd, $Rs1", []>;
@@ -131,7 +136,8 @@ def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
   let Inst{7 - 0} = NOP_OPC; // Opcode
 }
 
-def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i32imm:$Imm), "GENINT $Rd, $Imm", []> {
+def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i32imm:$Imm), "GENINT $Rd, $Imm",
+             []> {
   bits<5> Rd;
   bits<32> Imm;
 
