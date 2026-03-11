@@ -129,7 +129,8 @@ def STORE : InstrMemory<STORE_OPC, (outs), (ins GPR:$Rd, GPR:$Rs1),
             [(store (i64 GPR:$Rs1), (i64 tframeindex:$Rd))]>;
 
 def LOAD : InstrMemory<LOAD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1),
-           "LOAD $Rd, $Rs1", []>;
+           "LOAD $Rd, $Rs1",
+           [(set (i64 GPR:$Rd), (load (i64 tframeindex:$Rs1)))]>;
 
 
 def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
