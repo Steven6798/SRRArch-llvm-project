@@ -28,9 +28,6 @@ class SRRArchTargetLowering : public TargetLowering {
 public:
   SRRArchTargetLowering(const TargetMachine &TM, const SRRArchSubtarget &STI);
 
-  // LowerOperation - Provide custom lowering hooks for some operations.
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-
   bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
                       bool IsVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -50,6 +47,10 @@ private:
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
+
+  // Custom lowering hooks.
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue LowerFrameIndex(SDValue Op, SelectionDAG &DAG) const;
 
   const SRRArchRegisterInfo *TRI;
 };

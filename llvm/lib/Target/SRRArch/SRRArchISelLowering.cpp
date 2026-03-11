@@ -34,6 +34,8 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
 
   setStackPointerRegisterToSaveRestore(SRRArch::R1);
 
+  setOperationAction(ISD::FrameIndex, MVT::i64, Custom);
+
   // Function alignments
   setMinFunctionAlignment(Align(8));
   setPrefFunctionAlignment(Align(8));
@@ -44,7 +46,12 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
 
 SDValue SRRArchTargetLowering::LowerOperation(SDValue Op,
                                               SelectionDAG &DAG) const {
-  llvm_unreachable("LowerOperation not implemented yet");
+  switch (Op.getOpcode()) {
+  case ISD::FrameIndex:
+    return LowerFrameIndex(Op, DAG);
+  default:
+    llvm_unreachable("unimplemented operand");
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -128,3 +135,9 @@ SRRArchTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
 //===----------------------------------------------------------------------===//
 //                      Custom Lowerings
 //===----------------------------------------------------------------------===//
+
+SDValue SRRArchTargetLowering::LowerFrameIndex(SDValue Op,
+                                               SelectionDAG &DAG) const {
+  int FI = cast<FrameIndexSDNode>(Op)->getIndex();
+  return DAG.getTargetFrameIndex(FI, Op.getValueType());
+}
