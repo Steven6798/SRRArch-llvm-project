@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SRRArchMCAsmInfo.h"
+#include "llvm/MC/MCExpr.h"
 
 using namespace llvm;
 
@@ -36,5 +37,13 @@ SRRArchMCAsmInfo::SRRArchMCAsmInfo(const Triple & /*TheTriple*/,
 
 void SRRArchMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
                                           const MCSpecifierExpr &Expr) const {
-  llvm_unreachable("printSpecifierExpr not implemented yet");
+  if (Expr.getSpecifier() == 0) {
+    printExpr(OS, *Expr.getSubExpr());
+    return;
+  }
+
+  switch (Expr.getSpecifier()) {
+  default:
+    llvm_unreachable("Invalid kind!");
+  }
 }
