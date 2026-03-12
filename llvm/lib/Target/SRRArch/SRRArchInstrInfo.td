@@ -64,45 +64,56 @@ defvar MOV_OPC = 0x14;
 // -------------------------------------------------------------------------- //
 
 def ADD : InstrArith<ADD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "ADD $Rd, $Rs1, $Rs2", []>;
+          "ADD $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (add (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def SUB : InstrArith<SUB_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SUB $Rd, $Rs1, $Rs2", []>;
+          "SUB $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (sub (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def MUL : InstrArith<MUL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "MUL $Rd, $Rs1, $Rs2", []>;
+          "MUL $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (mul (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def SDIV : InstrArith<SDIV_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-           "SDIV $Rd, $Rs1, $Rs2", []>;
+           "SDIV $Rd, $Rs1, $Rs2",
+           [(set (i64 GPR:$Rd), (sdiv (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def UDIV : InstrArith<UDIV_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-           "UDIV $Rd, $Rs1, $Rs2", []>;
+           "UDIV $Rd, $Rs1, $Rs2",
+           [(set (i64 GPR:$Rd), (udiv (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 // -------------------------------------------------------------------------- //
 // Bitwise
 // -------------------------------------------------------------------------- //
 
 def AND : InstrArith<AND_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "AND $Rd, $Rs1, $Rs2", []>;
+          "AND $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (and (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def OR : InstrArith<OR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-         "OR $Rd, $Rs1, $Rs2", []>;
+         "OR $Rd, $Rs1, $Rs2",
+         [(set (i64 GPR:$Rd), (or (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def XOR : InstrArith<XOR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "XOR $Rd, $Rs1, $Rs2", []>;
+          "XOR $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (xor (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 // -------------------------------------------------------------------------- //
 // Shift
 // -------------------------------------------------------------------------- //
 
 def SHL : InstrArith<SHL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SHL $Rd, $Rs1, $Rs2", []>;
+          "SHL $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (shl (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def SRA : InstrArith<SRA_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SRA $Rd, $Rs1, $Rs2", []>;
+          "SRA $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (sra (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def SRL : InstrArith<SRL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SRL $Rd, $Rs1, $Rs2", []>;
+          "SRL $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (srl (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 // -------------------------------------------------------------------------- //
 // Comparison
