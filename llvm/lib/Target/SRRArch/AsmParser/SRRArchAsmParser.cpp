@@ -172,6 +172,8 @@ public:
 
   bool isToken() const override { return Kind == TOKEN; }
 
+  bool isLoImm32() { return false; }
+
   void addExpr(MCInst &Inst, const MCExpr *Expr) const {
     llvm_unreachable("addExpr not implemented yet");
   }

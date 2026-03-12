@@ -21,13 +21,28 @@ include "SRRArchInstrFormats.td"
 // -------------------------------------------------------------------------- //
 
 def SDT_SRRArchRetGlue  : SDTypeProfile<0,  1, [SDTCisVT<0, i64>]>;
+def SDT_SRRArchGENINT   : SDTypeProfile<1,  1, [SDTCisVT<0, i64>]>;
 
-def RetGlue          : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
-                              [SDNPHasChain, SDNPOptInGlue]>;
+def SRRArchRetGlue      : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
+                          [SDNPHasChain, SDNPOptInGlue]>;
+def SRRArchGENINT       : SDNode<"SRRArchISD::GENINT", SDT_SRRArchGENINT,
+                          []>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
 //===----------------------------------------------------------------------===//
+
+// Extract bits 0-31 (low-end) of an immediate value.
+def LO32 : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant((uint64_t)N->getZExtValue() & 0xffffffff,
+                                   SDLoc(N), MVT::i64);
+}]>;
+
+def i64lo32z : Operand<i64>, PatLeaf<(i64 imm), [{
+    // i64lo32 predicate - true if the 64-bit immediate has only rightmost 32
+    // bits set.
+    return ((int64_t)(N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
+}
 
 // -------------------------------------------------------------------------- //
 // Opcodes
@@ -143,13 +158,15 @@ def LOAD : InstrMemory<LOAD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1),
            "LOAD $Rd, $Rs1",
            [(set (i64 GPR:$Rd), (load (i64 tframeindex:$Rs1)))]>;
 
+def : Pat<(load GPR:$Rs1), (LOAD GPR:$Rs1)>;
+
 
 def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
   let Inst{7 - 0} = NOP_OPC; // Opcode
 }
 
-def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i32imm:$Imm), "GENINT $Rd, $Imm",
-             []> {
+def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i64lo32z:$Imm), "GENINT $Rd, $Imm",
+             [(set (i64 GPR:$Rd), (SRRArchGENINT (i64 tglobaladdr:$Imm)))]> {
   bits<5> Rd;
   bits<32> Imm;
 
@@ -175,7 +192,7 @@ def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
 
 let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
   def RETURN : InstSRRArch<(outs), (ins GPR:$Rv), "RETURN $Rv",
-    [(RetGlue GPR:$Rv)]> {
+    [(SRRArchRetGlue GPR:$Rv)]> {
     bits<5> Rv;
 
     let Inst{7 - 0}   = RETURN_OPC; // Opcode

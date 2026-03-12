@@ -29,6 +29,8 @@ class LLVM_LIBRARY_VISIBILITY SRRArchMCInstLower {
 
 public:
   SRRArchMCInstLower(MCContext &CTX, AsmPrinter &AP) : Ctx(CTX), Printer(AP) {}
+
+  MCOperand LowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym) const;
   void Lower(const MachineInstr *MI, MCInst &OutMI) const;
 };
 } // namespace llvm

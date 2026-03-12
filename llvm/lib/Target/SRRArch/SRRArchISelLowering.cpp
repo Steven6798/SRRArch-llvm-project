@@ -35,6 +35,7 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
   setStackPointerRegisterToSaveRestore(SRRArch::R1);
 
   setOperationAction(ISD::FrameIndex, MVT::i64, Custom);
+  setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
   // Function alignments
   setMinFunctionAlignment(Align(8));
@@ -49,6 +50,8 @@ SDValue SRRArchTargetLowering::LowerOperation(SDValue Op,
   switch (Op.getOpcode()) {
   case ISD::FrameIndex:
     return LowerFrameIndex(Op, DAG);
+  case ISD::GlobalAddress:
+    return LowerGlobalAddress(Op, DAG);
   default:
     llvm_unreachable("unimplemented operand");
   }
@@ -140,4 +143,19 @@ SDValue SRRArchTargetLowering::LowerFrameIndex(SDValue Op,
                                                SelectionDAG &DAG) const {
   int FI = cast<FrameIndexSDNode>(Op)->getIndex();
   return DAG.getTargetFrameIndex(FI, Op.getValueType());
+}
+
+SDValue SRRArchTargetLowering::LowerGlobalAddress(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  MVT VT = getPointerTy(DAG.getDataLayout());
+  const GlobalValue *GV = cast<GlobalAddressSDNode>(Op)->getGlobal();
+  int64_t Offset = cast<GlobalAddressSDNode>(Op)->getOffset();
+
+  // Create the TargetGlobalAddress node, folding in the constant offset.
+  SDValue TGA = DAG.getTargetGlobalAddress(GV, DL, MVT::i64, Offset);
+
+  // Insert a GENINT. For now this assumess that the absolute address fits in
+  // 32-bits. If this is not the case then the linker will throw an error.
+  return DAG.getNode(SRRArchISD::GENINT, DL, VT, TGA);
 }

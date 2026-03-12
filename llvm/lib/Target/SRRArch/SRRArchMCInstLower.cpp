@@ -12,12 +12,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "SRRArchMCInstLower.h"
+#include "MCTargetDesc/SRRArchBaseInfo.h"
 #include "MCTargetDesc/SRRArchMCAsmInfo.h"
+#include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/MC/MCInst.h"
 
 using namespace llvm;
+
+MCOperand SRRArchMCInstLower::LowerSymbolOperand(const MachineOperand &MO,
+                                                 MCSymbol *Sym) const {
+  SRRArch::Specifier Kind;
+  switch (MO.getTargetFlags()) {
+  case SRRArchII::MO_NO_FLAG:
+    Kind = SRRArch::S_None;
+    break;
+  default:
+    llvm_unreachable("Unknown target flag on GV operand");
+  }
+
+  const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
+  if (!MO.isJTI() && MO.getOffset())
+    Expr = MCBinaryExpr::createAdd(
+        Expr, MCConstantExpr::create(MO.getOffset(), Ctx), Ctx);
+  Expr = MCSpecifierExpr::create(Expr, Kind, Ctx);
+  return MCOperand::createExpr(Expr);
+}
 
 void SRRArchMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
   OutMI.setOpcode(MI->getOpcode());
@@ -40,6 +61,9 @@ void SRRArchMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
       break;
     case MachineOperand::MO_RegisterMask:
       continue;
+    case MachineOperand::MO_GlobalAddress:
+      MCOp = LowerSymbolOperand(MO, Printer.getSymbol(MO.getGlobal()));
+      break;
     default:
       MI->print(errs());
       llvm_unreachable("unknown operand type");
