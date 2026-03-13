@@ -42,6 +42,25 @@ SRRArch::SRRArch(Ctx &ctx) : TargetInfo(ctx) {
 void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
                        uint64_t val) const {
   switch (rel.type) {
+  case R_SRRARCH_32:
+    write32le(loc, val);
+    break;
+  case R_SRRARCH_64:
+    write64le(loc, val);
+    break;
+  case R_SRRARCH_GV: {
+    checkUInt(ctx, loc, val, 32, rel);
+    uint8_t *p = loc + 1; // 12 / 8
+    int shift = 4;        // 12 % 8
+
+    uint64_t v = (uint64_t)val << shift;
+
+    for (int i = 0; i < 5; i++) {
+      p[i] &= ~(0xFF << (i * 8));
+      p[i] |= (v >> (i * 8)) & 0xFF;
+    }
+    break;
+  }
   default:
     llvm_unreachable("unknown relocation");
   }
@@ -50,6 +69,10 @@ void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
 RelExpr SRRArch::getRelExpr(RelType type, const Symbol &s,
                             const uint8_t *loc) const {
   switch (type) {
+  case R_SRRARCH_32:
+  case R_SRRARCH_64:
+  case R_SRRARCH_GV:
+    return R_ABS;
   default:
     Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
              << ") against symbol " << &s;
