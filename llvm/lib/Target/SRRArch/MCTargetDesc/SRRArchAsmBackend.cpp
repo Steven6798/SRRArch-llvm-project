@@ -84,7 +84,7 @@ void SRRArchAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   // For each byte of the fragment that the fixup touches, mask in the
   // bits from the fixup value.
   for (unsigned i = 0; i != NumBytes; ++i) {
-    Data[i + Offset] |= uint8_t((Value >> (i * 8)) & 0xff);
+    Data[i] |= uint8_t((Value >> (i * 8)) & 0xff);
   }
 }
 
