@@ -772,11 +772,12 @@ static uint64_t resolveWasm64(uint64_t Type, uint64_t Offset, uint64_t S,
 
 // [SRR]: Temporary implementation.
 static bool supportsSRRArch(uint64_t Type) {
+  llvm_unreachable("Invalid relocation type");
   return false;
 }
 
 static uint64_t resolveSRRArch(uint64_t Type, uint64_t Offset, uint64_t S,
-                             uint64_t /*LocData*/, int64_t Addend) {
+                               uint64_t /*LocData*/, int64_t Addend) {
   llvm_unreachable("Invalid relocation type");
 }
 

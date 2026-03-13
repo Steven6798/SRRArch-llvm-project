@@ -30,7 +30,7 @@ public:
 
 namespace SRRArch {
 using Specifier = uint8_t;
-enum { S_None, S_ABS_HI, S_ABS_LO };
+enum { S_None };
 } // namespace SRRArch
 
 } // namespace llvm

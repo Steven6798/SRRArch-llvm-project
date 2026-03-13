@@ -73,19 +73,20 @@ unsigned SRRArchMCCodeEmitter::getMachineOpValue(
     return MCOp.getImm();
 
   // MCOp must be an expression
-  // assert(MCOp.isExpr());
-  // const MCExpr *Expr = MCOp.getExpr();
+  assert(MCOp.isExpr());
+  const MCExpr *Expr = MCOp.getExpr();
 
-  // // Extract the symbolic reference side of a binary expression.
-  // if (Expr->getKind() == MCExpr::Binary) {
-  //   const MCBinaryExpr *BinaryExpr = static_cast<const MCBinaryExpr *>(Expr);
-  //   Expr = BinaryExpr->getLHS();
-  // }
+  // Extract the symbolic reference side of a binary expression.
+  if (Expr->getKind() == MCExpr::Binary) {
+    const MCBinaryExpr *BinaryExpr = static_cast<const MCBinaryExpr *>(Expr);
+    Expr = BinaryExpr->getLHS();
+  }
 
-  // assert(isa<MCSpecifierExpr>(Expr) || Expr->getKind() == MCExpr::SymbolRef);
-  // // Push fixup (all info is contained within)
-  // Fixups.push_back(
-  //     MCFixup::create(0, MCOp.getExpr(), MCFixupKind(FixupKind(Expr))));
+  if (Inst.getOpcode() == SRRArch::GENINT) {
+    Fixups.push_back(MCFixup::create(0, Expr, SRRArch::FIXUP_SRRARCH_GV));
+  } else {
+    llvm_unreachable("Invalid expresion");
+  }
   return 0;
 }
 
@@ -93,6 +94,8 @@ void SRRArchMCCodeEmitter::encodeInstruction(
     const MCInst &Inst, SmallVectorImpl<char> &CB,
     SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &SubtargetInfo) const {
+  LLVM_DEBUG(dbgs() << "Encoding: " << Inst << "\n");
+
   // Get instruction encoding and emit it
   unsigned Value = getBinaryCodeForInstr(Inst, Fixups, SubtargetInfo);
   ++MCNumEmitted; // Keep track of the number of emitted insns.

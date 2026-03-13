@@ -25,12 +25,9 @@ enum Fixups {
   // Results in R_SRRArch_NONE
   FIXUP_SRRARCH_NONE = FirstTargetFixupKind,
 
-  FIXUP_SRRARCH_21,   // 21-bit symbol relocation
-  FIXUP_SRRARCH_21_F, // 21-bit symbol relocation, last two bits masked to 0
-  FIXUP_SRRARCH_25,   // 25-bit branch targets
-  FIXUP_SRRARCH_32,   // general 32-bit relocation
-  FIXUP_SRRARCH_HI16, // upper 16-bits of a symbolic relocation
-  FIXUP_SRRARCH_LO16, // lower 16-bits of a symbolic relocation
+  FIXUP_SRRARCH_32, // general 32-bit relocation
+  FIXUP_SRRARCH_64, // general 64-bit relocation
+  FIXUP_SRRARCH_GV, // 32-bit global targets
 
   // Marker
   LastTargetFixupKind,

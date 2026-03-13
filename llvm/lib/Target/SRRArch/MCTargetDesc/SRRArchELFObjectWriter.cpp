@@ -34,13 +34,32 @@ SRRArchELFObjectWriter::SRRArchELFObjectWriter(uint8_t OSABI)
 
 unsigned SRRArchELFObjectWriter::getRelocType(const MCFixup &Fixup,
                                               const MCValue &, bool) const {
-  llvm_unreachable("getRelocType not implemented yet");
-  return 0;
+  unsigned Type;
+  unsigned Kind = static_cast<unsigned>(Fixup.getKind());
+  switch (Kind) {
+  case SRRArch::FIXUP_SRRARCH_GV:
+    Type = ELF::R_SRRARCH_GV;
+    break;
+  case SRRArch::FIXUP_SRRARCH_32:
+  case FK_Data_4:
+    Type = ELF::R_SRRARCH_32;
+    break;
+  case SRRArch::FIXUP_SRRARCH_64:
+  case FK_Data_8:
+    Type = ELF::R_SRRARCH_64;
+    break;
+  case SRRArch::FIXUP_SRRARCH_NONE:
+    Type = ELF::R_SRRARCH_NONE;
+    break;
+
+  default:
+    llvm_unreachable("Invalid fixup kind!");
+  }
+  return Type;
 }
 
 bool SRRArchELFObjectWriter::needsRelocateWithSymbol(const MCValue &,
                                                      unsigned Type) const {
-  llvm_unreachable("needsRelocateWithSymbol not implemented yet");
   return false;
 }
 

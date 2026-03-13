@@ -9,6 +9,7 @@
 #include "MCTargetDesc/SRRArchMCTargetDesc.h"
 #include "SRRArchFixupKinds.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
@@ -59,13 +60,16 @@ bool SRRArchAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
 void SRRArchAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                    const MCValue &Target, uint8_t *Data,
                                    uint64_t Value, bool IsResolved) {
-  // IsResolved = addReloc(F, Fixup, Target, Value, IsResolved);
+  maybeAddReloc(F, Fixup, Target, Value, IsResolved);
+
   MCFixupKind Kind = Fixup.getKind();
   if (mc::isRelocation(Kind))
     return;
+
   MCFixupKindInfo Info = getFixupKindInfo(Kind);
   if (!Value)
     return; // Doesn't change encoding.
+
   // Apply any target-specific value adjustments.
   Value = adjustFixupValue(Kind, Value);
 
@@ -73,13 +77,14 @@ void SRRArchAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   Value <<= Info.TargetOffset;
 
   unsigned NumBytes = alignTo(Info.TargetSize + Info.TargetOffset, 8) / 8;
-  assert(Fixup.getOffset() + NumBytes <= F.getSize() &&
-         "Invalid fixup offset!");
+  // Where do we start in the object
+  unsigned Offset = Fixup.getOffset();
+  assert(Offset + NumBytes <= F.getSize() && "Invalid fixup offset!");
 
   // For each byte of the fragment that the fixup touches, mask in the
   // bits from the fixup value.
   for (unsigned i = 0; i != NumBytes; ++i) {
-    Data[i] |= uint8_t((Value >> (i * 8)) & 0xff);
+    Data[i + Offset] |= uint8_t((Value >> (i * 8)) & 0xff);
   }
 }
 
@@ -93,10 +98,12 @@ MCFixupKindInfo SRRArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   static const MCFixupKindInfo Infos[SRRArch::NumTargetFixupKinds] = {
       // This table *must* be in same the order of fixup_* kinds in
       // SRRArchFixupKinds.h.
-      // Note: The number of bits indicated here are assumed to be contiguous.
       //
       // name          offset bits flags
-      {"FIXUP_SRRARCH_NONE", 0, 32, 0}};
+      {"FIXUP_SRRARCH_NONE", 0, 32, 0},
+      {"FIXUP_SRRARCH_32", 0, 32, 0},
+      {"FIXUP_SRRARCH_64", 0, 64, 0},
+      {"FIXUP_SRRARCH_GV", 13, 32, 0}};
 
   if (Kind < FirstTargetFixupKind)
     return MCAsmBackend::getFixupKindInfo(Kind);
