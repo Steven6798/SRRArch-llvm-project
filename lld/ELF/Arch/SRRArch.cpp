@@ -50,15 +50,20 @@ void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
     break;
   case R_SRRARCH_GV: {
     checkUInt(ctx, loc, val, 32, rel);
-    uint8_t *p = loc + 1; // 12 / 8
-    int shift = 4;        // 12 % 8
 
-    uint64_t v = (uint64_t)val << shift;
+    // The 32-bit value needs to be placed starting at bit 13
+    uint64_t v = (uint64_t)val << 13;
 
-    for (int i = 0; i < 5; i++) {
-      p[i] &= ~(0xFF << (i * 8));
-      p[i] |= (v >> (i * 8)) & 0xFF;
+    // Save the register field (bits 0-4 of byte 1)
+    uint8_t reg_field = loc[1] & 0x1F; // Preserve low 5 bits
+
+    // Write bytes 1-5 (bits 8-47)
+    for (int i = 1; i <= 5; i++) {
+      loc[i] = (v >> (i * 8)) & 0xFF;
     }
+
+    // Restore the register field
+    loc[1] = (loc[1] & ~0x1F) | reg_field;
     break;
   }
   default:
