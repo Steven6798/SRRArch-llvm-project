@@ -24,9 +24,10 @@ foreach i = 0-31 in {
 
 // Register classes.
 def GPR : RegisterClass<"SRRArch", [i64], 64,
-   (add (sequence "R%i", 20, 31), // callee save
-   (sequence "R%i", 8, 19),       // caller save
-    R4, R5, R6, R7,               // registers for passing arguments
+   (add (sequence "R%i", 21, 31), // callee save
+   (sequence "R%i", 9, 20),       // caller save
+    R5, R6, R7, R8,               // registers for passing arguments
+    R4,                           // return address
     R3,                           // return value
     R2,                           // frame pointer
     R1,                           // stack pointer

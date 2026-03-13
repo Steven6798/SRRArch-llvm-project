@@ -28,7 +28,7 @@ using namespace llvm;
 #define DEBUG_TYPE "srrarch-register-info"
 
 SRRArchRegisterInfo::SRRArchRegisterInfo()
-    : SRRArchGenRegisterInfo(SRRArch::R3) {
+    : SRRArchGenRegisterInfo(/*RA=*/SRRArch::R4, 0, 0, /*PC=*/SRRArch::R0) {
   StackPtr = SRRArch::R1;
   FramePtr = SRRArch::R2;
 }
@@ -50,6 +50,7 @@ SRRArchRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(SRRArch::R5);
   Reserved.set(SRRArch::R6);
   Reserved.set(SRRArch::R7);
+  Reserved.set(SRRArch::R8);
   return Reserved;
 }
 

@@ -38,7 +38,7 @@ static MCInstrInfo *createSRRArchMCInstrInfo() {
 
 static MCRegisterInfo *createSRRArchMCRegisterInfo(const Triple & /*TT*/) {
   MCRegisterInfo *X = new MCRegisterInfo();
-  InitSRRArchMCRegisterInfo(X, SRRArch::R3, 0, 0, SRRArch::R0);
+  InitSRRArchMCRegisterInfo(X, /*RA=*/SRRArch::R4, 0, 0, /*PC=*/SRRArch::R0);
   return X;
 }
 

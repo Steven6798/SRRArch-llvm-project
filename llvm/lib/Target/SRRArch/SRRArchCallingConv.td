@@ -16,7 +16,7 @@ def CC_SRRArch : CallingConv<[
   CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 
   // Put argument in registers if not a vararg call.
-  CCIfNotVarArg<CCIfType<[i64], CCAssignToReg<[R4, R4, R6, R7]>>>,
+  CCIfNotVarArg<CCIfType<[i64], CCAssignToReg<[R5, R6, R7, R8]>>>,
 
   // Otherwise they are assigned to the stack in 8-byte aligned units.
   CCAssignToStack<8, 8>
@@ -28,4 +28,4 @@ def RetCC_SRRArch : CallingConv<[
   CCIfType<[i64], CCAssignToReg<[R3]>>
 ]>;
 
-def CSR: CalleeSavedRegs<(add (sequence "R%i", 20, 31))>;
+def CSR: CalleeSavedRegs<(add (sequence "R%i", 21, 31))>;

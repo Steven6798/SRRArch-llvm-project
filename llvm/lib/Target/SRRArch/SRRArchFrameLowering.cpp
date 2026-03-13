@@ -78,13 +78,13 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
 
   if (hasFP(MF)) {
     // 1. Allocate space for saved FP
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R8)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
         .addImm(8)
         .setMIFlag(MachineInstr::FrameSetup);
 
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
         .addReg(SP)
-        .addReg(SRRArch::R8)
+        .addReg(SRRArch::R9)
         .setMIFlag(MachineInstr::FrameSetup);
 
     // 2. Save old FP at (sp)
@@ -101,13 +101,13 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
 
   // Allocate remaining stack space for locals and callee-saved
   if (StackSize > 0) {
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R8)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
         .addImm(StackSize)
         .setMIFlag(MachineInstr::FrameSetup);
 
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
         .addReg(SP)
-        .addReg(SRRArch::R8)
+        .addReg(SRRArch::R9)
         .setMIFlag(MachineInstr::FrameSetup);
   }
 }
