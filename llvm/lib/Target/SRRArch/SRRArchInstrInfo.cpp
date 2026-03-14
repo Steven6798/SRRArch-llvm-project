@@ -20,7 +20,9 @@ using namespace llvm;
 #include "SRRArchGenInstrInfo.inc"
 
 SRRArchInstrInfo::SRRArchInstrInfo(const SRRArchSubtarget &STI)
-    : SRRArchGenInstrInfo(STI, RegisterInfo), RegisterInfo() {}
+    : SRRArchGenInstrInfo(STI, RegisterInfo, SRRArch::ADJCALLSTACKDOWN,
+                          SRRArch::ADJCALLSTACKUP),
+      RegisterInfo() {}
 
 void SRRArchInstrInfo::copyPhysReg(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,

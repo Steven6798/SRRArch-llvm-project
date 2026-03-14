@@ -41,6 +41,9 @@ public:
 
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS = nullptr) const override;
+  MachineBasicBlock::iterator
+  eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator I) const override;
 
 protected:
   bool hasFPImpl(const MachineFunction & /*MF*/) const override { return true; }

@@ -19,6 +19,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "srrarch-frame-lowering"
+
 // Determines the size of the frame and maximum call frame size.
 void SRRArchFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -75,9 +77,10 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
   // Get registers
   Register FP = SRI->getFrameRegister(MF);
   Register SP = SRI->getStackRegister();
+  Register RA = SRI->getRetAddrRegister();
 
   if (hasFP(MF)) {
-    // 1. Allocate space for saved FP
+    // Allocate space for saved RA
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
         .addImm(8)
         .setMIFlag(MachineInstr::FrameSetup);
@@ -87,13 +90,25 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
         .addReg(SRRArch::R9)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    // 2. Save old FP at (sp)
+    // Save RA at (sp)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::STORE))
+        .addReg(SP)
+        .addReg(RA)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    // Allocate space for saved FP
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+        .addReg(SP)
+        .addReg(SRRArch::R9)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    // Save old FP at (sp)
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::STORE))
         .addReg(SP)
         .addReg(FP)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    // 3. Set new FP to current SP
+    // Set new FP to current SP
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::MOV), FP)
         .addReg(SP)
         .setMIFlag(MachineInstr::FrameSetup);
@@ -110,6 +125,8 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
         .addReg(SRRArch::R9)
         .setMIFlag(MachineInstr::FrameSetup);
   }
+
+  LLVM_DEBUG(dbgs() << "After Prologue:" << MBB << "\n");
 }
 
 void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
@@ -123,6 +140,7 @@ void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
   // Get registers
   Register FP = SRI->getFrameRegister(MF);
   Register SP = SRI->getStackRegister();
+  Register RA = SRI->getRetAddrRegister();
 
   // Restore the stack pointer using the callee's frame pointer value.
   BuildMI(MBB, MBBI, DL, SII.get(SRRArch::MOV), SP)
@@ -133,10 +151,45 @@ void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
   BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), FP)
       .addReg(SP)
       .setMIFlag(MachineInstr::FrameDestroy);
+
+  // Calculate address for return address (SP + 8)
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+      .addImm(8)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::ADD), SRRArch::R9)
+      .addReg(SP)
+      .addReg(SRRArch::R9)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  // Restore the return address (R4) from the stack.
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), RA)
+      .addReg(SRRArch::R9)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  LLVM_DEBUG(dbgs() << "After Epilogue:" << MBB << "\n");
 }
 
 void SRRArchFrameLowering::determineCalleeSaves(MachineFunction &MF,
                                                 BitVector &SavedRegs,
                                                 RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  int Offset = -8;
+
+  // Reserve 8 bytes for the saved RA
+  MFI.CreateFixedObject(8, Offset, true);
+  Offset -= 8;
+
+  // Reserve 8 bytes for the saved FP
+  MFI.CreateFixedObject(8, Offset, true);
+  Offset -= 8;
+}
+
+MachineBasicBlock::iterator SRRArchFrameLowering::eliminateCallFramePseudoInstr(
+    MachineFunction & /*MF*/, MachineBasicBlock &MBB,
+    MachineBasicBlock::iterator I) const {
+  // Discard ADJCALLSTACKDOWN, ADJCALLSTACKUP instructions.
+  return MBB.erase(I);
 }

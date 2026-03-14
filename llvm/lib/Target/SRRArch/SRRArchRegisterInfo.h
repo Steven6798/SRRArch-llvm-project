@@ -30,6 +30,9 @@ private:
   /// Physical register used as frame ptr.
   unsigned FramePtr;
 
+  /// Physical register used as return address.
+  unsigned RetAddr;
+
 public:
   SRRArchRegisterInfo();
 
@@ -51,6 +54,7 @@ public:
   }
 
   // Debug information queries.
+  Register getRetAddrRegister() const { return RetAddr; }
   Register getFrameRegister(const MachineFunction &MF) const override;
   Register getStackRegister() const { return StackPtr; }
 };

@@ -31,6 +31,7 @@ SRRArchRegisterInfo::SRRArchRegisterInfo()
     : SRRArchGenRegisterInfo(/*RA=*/SRRArch::R4, 0, 0, /*PC=*/SRRArch::R0) {
   StackPtr = SRRArch::R1;
   FramePtr = SRRArch::R2;
+  RetAddr = SRRArch::R4;
 }
 
 const uint16_t *
@@ -126,6 +127,5 @@ SRRArchRegisterInfo::getFrameRegister(const MachineFunction & /*MF*/) const {
 const uint32_t *
 SRRArchRegisterInfo::getCallPreservedMask(const MachineFunction & /*MF*/,
                                           CallingConv::ID /*CC*/) const {
-  llvm_unreachable("getCallPreservedMask not implemented yet");
-  return nullptr;
+  return CSR_RegMask;
 }

@@ -17,6 +17,7 @@
 #include "SRRArchSubtarget.h"
 #include "SRRArchTargetObjectFile.h"
 #include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 
 #define DEBUG_TYPE "srrarch-lower"
 
@@ -87,7 +88,143 @@ SDValue SRRArchTargetLowering::LowerFormalArguments(
 SDValue
 SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                  SmallVectorImpl<SDValue> &InVals) const {
-  llvm_unreachable("LowerCall not implemented yet");
+  SelectionDAG &DAG = CLI.DAG;
+  SDLoc &DL = CLI.DL;
+  SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
+  SmallVectorImpl<SDValue> &OutVals = CLI.OutVals;
+  SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
+  SDValue Chain = CLI.Chain;
+  SDValue Callee = CLI.Callee;
+  // bool &IsTailCall = CLI.IsTailCall;
+  CallingConv::ID CallConv = CLI.CallConv;
+  bool IsVarArg = CLI.IsVarArg;
+
+  // Analyze operands of the call, assigning locations to each operand.
+  SmallVector<CCValAssign, 16> ArgLocs;
+  CCState ArgCCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
+                    *DAG.getContext());
+  // GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee);
+  // MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
+
+  if (IsVarArg) {
+    llvm_unreachable("function call variable arguments not supported yet");
+  } else {
+    ArgCCInfo.AnalyzeCallOperands(Outs, CC_SRRArch);
+  }
+
+  // Get a count of how many bytes are to be pushed on the stack.
+  unsigned NumBytes = ArgCCInfo.getStackSize();
+
+  // Create local copies for byval args.
+  SmallVector<SDValue, 8> ByValArgs;
+  for (unsigned I = 0, E = Outs.size(); I != E; ++I) {
+    llvm_unreachable("function call byval arguments not supported yet");
+  }
+
+  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
+
+  SmallVector<std::pair<unsigned, SDValue>, 4> RegsToPass;
+  SmallVector<SDValue, 12> MemOpChains;
+  // SDValue StackPtr;
+
+  // Walk the register/memloc assignments, inserting copies/loads.
+  for (unsigned I = 0, J = 0, E = ArgLocs.size(); I != E; ++I) {
+    llvm_unreachable("function call arguments not supported yet");
+    CCValAssign &VA = ArgLocs[I];
+    SDValue Arg = OutVals[I];
+    ISD::ArgFlagsTy Flags = Outs[I].Flags;
+
+    // Promote the value if needed.
+    switch (VA.getLocInfo()) {
+    case CCValAssign::Full:
+      break;
+    case CCValAssign::SExt:
+      Arg = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Arg);
+      break;
+    case CCValAssign::ZExt:
+      Arg = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Arg);
+      break;
+    case CCValAssign::AExt:
+      Arg = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Arg);
+      break;
+    default:
+      llvm_unreachable("Unknown loc info!");
+    }
+
+    // Use local copy if it is a byval arg.
+    if (Flags.isByVal())
+      Arg = ByValArgs[J++];
+
+    // Arguments that can be passed on register must be kept at RegsToPass
+    // vector
+    if (VA.isRegLoc()) {
+      RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
+    } else {
+      llvm_unreachable("Arguments passed on the stack not supported yet");
+    }
+  }
+
+  SDValue InGlue;
+
+  // Build a sequence of copy-to-reg nodes chained together with token chain and
+  // flag operands which copy the outgoing args into registers.  The InGlue in
+  // necessary since all emitted instructions must be stuck together.
+  for (const auto &[Reg, N] : RegsToPass) {
+    Chain = DAG.getCopyToReg(Chain, DL, Reg, N, InGlue);
+    InGlue = Chain.getValue(1);
+  }
+
+  // Returns a chain & a flag for retval copy to use.
+  SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+  SmallVector<SDValue, 8> Ops;
+  Ops.push_back(Chain);
+  Ops.push_back(Callee);
+
+  // Add a register mask operand representing the call-preserved registers.
+  const uint32_t *Mask =
+      TRI->getCallPreservedMask(DAG.getMachineFunction(), CallConv);
+  assert(Mask && "Missing call preserved mask for calling convention");
+  Ops.push_back(DAG.getRegisterMask(Mask));
+
+  // Add argument registers to the end of the list so that they are
+  // known live into the call.
+  for (const auto &[Reg, N] : RegsToPass)
+    Ops.push_back(DAG.getRegister(Reg, N.getValueType()));
+
+  // Set pc + 24(8*3) to the RA register. There are 3 instruction that we have
+  // to jump to get the address after the call: ADD, MOV and CALL
+  SDValue PC = DAG.getRegister(SRRArch::R0, getPointerTy(DAG.getDataLayout()));
+  SDValue Offset = DAG.getConstant(24, DL, MVT::i64);
+  SDValue PCAddr = DAG.getNode(ISD::ADD, DL, MVT::i64, PC, Offset);
+  // InGlue = Chain.getValue(1);
+
+  Chain = DAG.getCopyToReg(Chain, DL, SRRArch::R4, PCAddr, InGlue);
+  InGlue = Chain.getValue(1);
+
+  if (InGlue.getNode())
+    Ops.push_back(InGlue);
+
+  Chain = DAG.getNode(SRRArchISD::CALL, DL, NodeTys,
+                      ArrayRef<SDValue>(&Ops[0], Ops.size()));
+  InGlue = Chain.getValue(1);
+
+  // Create the CALLSEQ_END node.
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InGlue, DL);
+  InGlue = Chain.getValue(1);
+
+  // Assign locations to each value returned by this call.
+  SmallVector<CCValAssign, 16> RVLocs;
+  CCState RetCCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
+                    *DAG.getContext());
+
+  RetCCInfo.AnalyzeCallResult(Ins, RetCC_SRRArch);
+
+  // Copy all of the result registers out of their specified physreg.
+  for (unsigned I = 0; I != RVLocs.size(); ++I) {
+    llvm_unreachable("Function call returns not supported yet");
+  }
+
+  return Chain;
 }
 
 bool SRRArchTargetLowering::CanLowerReturn(
@@ -129,10 +266,7 @@ SRRArchTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
     Glue = Chain.getValue(1);
   }
 
-  unsigned Opc = SRRArchISD::RET_GLUE;
-  SDValue ReturnReg =
-      DAG.getRegister(SRRArch::R3, getPointerTy(DAG.getDataLayout()));
-  return DAG.getNode(Opc, DL, MVT::Other, Chain, ReturnReg);
+  return DAG.getNode(SRRArchISD::RET_GLUE, DL, MVT::Other, Chain);
 }
 
 //===----------------------------------------------------------------------===//

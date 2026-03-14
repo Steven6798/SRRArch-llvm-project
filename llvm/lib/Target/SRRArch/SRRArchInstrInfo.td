@@ -20,13 +20,24 @@ include "SRRArchInstrFormats.td"
 // Instruction Operands and Patterns
 // -------------------------------------------------------------------------- //
 
-def SDT_SRRArchRetGlue  : SDTypeProfile<0,  1, [SDTCisVT<0, i64>]>;
-def SDT_SRRArchGENINT   : SDTypeProfile<1,  1, [SDTCisVT<0, i64>]>;
+def SDT_SRRArchRetGlue      : SDTypeProfile<0,  0, []>;
+def SDT_SRRArchGENINT       : SDTypeProfile<1,  1, [SDTCisVT<0, i64>]>;
+def SDT_SRRArchCALL         : SDTypeProfile<0, -1, [SDTCisVT<0, i64>]>;
+def SDT_SRRArchCallSeqStart : SDCallSeqStart<[SDTCisVT<0, i64>,
+                                              SDTCisVT<1, i64>]>;
+def SDT_SRRArchCallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i64>,
+                                            SDTCisVT<1, i64>]>;
 
 def SRRArchRetGlue      : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
-                          [SDNPHasChain, SDNPOptInGlue]>;
+                                 [SDNPHasChain, SDNPOptInGlue]>;
 def SRRArchGENINT       : SDNode<"SRRArchISD::GENINT", SDT_SRRArchGENINT,
-                          []>;
+                                 []>;
+def SRRArchCALL         : SDNode<"SRRArchISD::CALL", SDT_SRRArchCALL,
+                                 [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+def SRRArchCallSeqStart : SDNode<"ISD::CALLSEQ_START", SDT_SRRArchCallSeqStart,
+                                 [SDNPHasChain, SDNPOutGlue]>;
+def SRRArchCallSeqEnd   : SDNode<"ISD::CALLSEQ_END", SDT_SRRArchCallSeqEnd,
+                                 [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -69,6 +80,7 @@ defvar LOAD_OPC = 0x11;
 defvar RETURN_OPC = 0x12;
 defvar GENINT_OPC = 0x13;
 defvar MOV_OPC = 0x14;
+defvar CALL_OPC = 0x15;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -190,13 +202,34 @@ def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
 // Branch
 // -------------------------------------------------------------------------- //
 
-let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
-  def RETURN : InstSRRArch<(outs), (ins GPR:$Rv), "RETURN $Rv",
-    [(SRRArchRetGlue GPR:$Rv)]> {
-    bits<5> Rv;
-
+let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R3], Uses = [R4] in {
+  def RETURN : InstSRRArch<(outs), (ins), "RETURN", [(SRRArchRetGlue)]> {
     let Inst{7 - 0}   = RETURN_OPC; // Opcode
-    let Inst{12 - 8}  = Rv;         // Return value reg
+    let Inst{63 - 8}  = 0;          // Reserved
+  }
+}
+
+let isCall = 1, Uses = [R1], Defs = [R4] in {
+  def CALL : InstSRRArch<(outs), (ins GPR:$Rs1), "CALL $Rs1",
+                         [(SRRArchCALL GPR:$Rs1)]> {
+    bits<5> Rs1;
+
+    let Inst{7 - 0}   = CALL_OPC;   // Opcode
+    let Inst{12 - 8}  = Rs1;        // Source register
     let Inst{63 - 13} = 0;          // Reserved
   }
+}
+
+// ADJCALLSTACKDOWN/UP implicitly use/def SP because they may be expanded into
+// a stack adjustment and the codegen must know that they may modify the stack
+// pointer before prolog-epilog rewriting occurs.
+// Pessimistically assume ADJCALLSTACKDOWN / ADJCALLSTACKUP will become
+// sub / add which can clobber SP.
+let Defs = [R1], Uses = [R1], isPseudo = 1 in {
+  def ADJCALLSTACKDOWN : InstSRRArch<(outs), (ins i64imm:$amt1, i64imm:$amt2),
+                                     "#ADJCALLSTACKDOWN $amt1 $amt2",
+                                [(SRRArchCallSeqStart timm:$amt1, timm:$amt2)]>;
+  def ADJCALLSTACKUP   : InstSRRArch<(outs), (ins i64imm:$amt1, i64imm:$amt2),
+                                     "#ADJCALLSTACKUP $amt1 $amt2",
+                                [(SRRArchCallSeqEnd timm:$amt1, timm:$amt2)]>;
 }
