@@ -54,6 +54,10 @@ public:
                              SmallVectorImpl<MCFixup> &Fixups,
                              const MCSubtargetInfo &SubtargetInfo) const;
 
+  unsigned getBranchTargetOpValue(const MCInst &Inst, unsigned OpNo,
+                                  SmallVectorImpl<MCFixup> &Fixups,
+                                  const MCSubtargetInfo &SubtargetInfo) const;
+
   void encodeInstruction(const MCInst &Inst, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &SubtargetInfo) const override;
@@ -87,6 +91,19 @@ unsigned SRRArchMCCodeEmitter::getMachineOpValue(
   } else {
     llvm_unreachable("Invalid expresion");
   }
+  return 0;
+}
+
+unsigned SRRArchMCCodeEmitter::getBranchTargetOpValue(
+    const MCInst &Inst, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups,
+    const MCSubtargetInfo &SubtargetInfo) const {
+  const MCOperand &MCOp = Inst.getOperand(OpNo);
+  if (MCOp.isReg() || MCOp.isImm())
+    return getMachineOpValue(Inst, MCOp, Fixups, SubtargetInfo);
+
+  Fixups.push_back(
+      MCFixup::create(0, MCOp.getExpr(), SRRArch::FIXUP_SRRARCH_BRANCH));
+
   return 0;
 }
 

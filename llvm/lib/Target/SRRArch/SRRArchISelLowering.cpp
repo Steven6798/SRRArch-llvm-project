@@ -38,6 +38,8 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::FrameIndex, MVT::i64, Custom);
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
+  setOperationAction(ISD::BR_CC, MVT::i64, Expand);
+
   // Function alignments
   setMinFunctionAlignment(Align(8));
   setPrefFunctionAlignment(Align(8));

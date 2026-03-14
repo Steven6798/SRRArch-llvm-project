@@ -6,8 +6,10 @@
 // No relocation
 ELF_RELOC(R_SRRARCH_NONE,        0)
 // General 32-bit relocation
-ELF_RELOC(R_SRRARCH_32,            1)
+ELF_RELOC(R_SRRARCH_32,          1)
 // General 64-bit relocation
-ELF_RELOC(R_SRRARCH_64,            2)
-// Global 32-bit relocation
-ELF_RELOC(R_SRRARCH_GV,            3)
+ELF_RELOC(R_SRRARCH_64,          2)
+// 32-bit global targets
+ELF_RELOC(R_SRRARCH_GV,          3)
+// 32-bit branch targets
+ELF_RELOC(R_SRRARCH_BRANCH,      4)

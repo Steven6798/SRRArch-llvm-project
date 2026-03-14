@@ -62,6 +62,14 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, unsigned RegNo,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeBranch(MCInst &MI, unsigned Insn, uint64_t Address,
+                                 const MCDisassembler *Decoder) {
+  if (Decoder->tryAddingSymbolicOperand(MI, Insn + Address, Address, false, 13,
+                                        32, /*InstSize=*/0))
+    MI.addOperand(MCOperand::createImm(Insn));
+  return MCDisassembler::Success;
+}
+
 #include "SRRArchGenDisassemblerTables.inc"
 
 DecodeStatus

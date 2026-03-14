@@ -36,8 +36,6 @@ public:
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        const char *ExtraCode, raw_ostream &O) override;
   void emitInstruction(const MachineInstr *MI) override;
-  bool isBlockOnlyReachableByFallthrough(
-      const MachineBasicBlock *MBB) const override;
 
 public:
   static char ID;
@@ -65,15 +63,6 @@ void SRRArchAsmPrinter::emitInstruction(const MachineInstr *MI) {
   MCInst TmpInst;
   MCInstLowering.Lower(MI, TmpInst);
   OutStreamer->emitInstruction(TmpInst, STI);
-}
-
-// isBlockOnlyReachableByFallthough - Return true if the basic block has
-// exactly one predecessor and the control transfer mechanism between
-// the predecessor and this block is a fall-through.
-bool SRRArchAsmPrinter::isBlockOnlyReachableByFallthrough(
-    const MachineBasicBlock *MBB) const {
-  llvm_unreachable("isBlockOnlyReachableByFallthrough not implemented yet");
-  return false;
 }
 
 char SRRArchAsmPrinter::ID = 0;

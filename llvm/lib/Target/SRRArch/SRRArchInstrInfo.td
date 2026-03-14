@@ -55,32 +55,39 @@ def i64lo32z : Operand<i64>, PatLeaf<(i64 imm), [{
     return ((int64_t)(N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
 }
 
+def BrTarget   : Operand<OtherVT> {
+  let EncoderMethod = "getBranchTargetOpValue";
+  let DecoderMethod = "decodeBranch";
+}
+
 // -------------------------------------------------------------------------- //
 // Opcodes
 // -------------------------------------------------------------------------- //
 
-defvar NOP_OPC = 0x00;
-defvar ADD_OPC = 0x01;
-defvar SUB_OPC = 0x02;
-defvar MUL_OPC = 0x03;
-defvar SDIV_OPC = 0x04;
-defvar UDIV_OPC = 0x05;
-defvar AND_OPC = 0x06;
-defvar OR_OPC = 0x07;
-defvar XOR_OPC = 0x08;
-defvar SHL_OPC = 0x09;
-defvar SRA_OPC = 0x0a;
-defvar SRL_OPC = 0x0b;
-defvar CMPEQ_OPC = 0x0c;
-defvar CMPNE_OPC = 0x0d;
-defvar CMPLT_OPC = 0x0e;
-defvar CMPGT_OPC = 0x0f;
-defvar STORE_OPC = 0x10;
-defvar LOAD_OPC = 0x11;
+defvar NOP_OPC    = 0x00;
+defvar ADD_OPC    = 0x01;
+defvar SUB_OPC    = 0x02;
+defvar MUL_OPC    = 0x03;
+defvar SDIV_OPC   = 0x04;
+defvar UDIV_OPC   = 0x05;
+defvar AND_OPC    = 0x06;
+defvar OR_OPC     = 0x07;
+defvar XOR_OPC    = 0x08;
+defvar SHL_OPC    = 0x09;
+defvar SRA_OPC    = 0x0a;
+defvar SRL_OPC    = 0x0b;
+defvar CMPEQ_OPC  = 0x0c;
+defvar CMPNE_OPC  = 0x0d;
+defvar CMPLT_OPC  = 0x0e;
+defvar CMPGT_OPC  = 0x0f;
+defvar STORE_OPC  = 0x10;
+defvar LOAD_OPC   = 0x11;
 defvar RETURN_OPC = 0x12;
 defvar GENINT_OPC = 0x13;
-defvar MOV_OPC = 0x14;
-defvar CALL_OPC = 0x15;
+defvar MOV_OPC    = 0x14;
+defvar CALL_OPC   = 0x15;
+defvar BRCOND_OPC = 0x16;
+defvar BR_OPC     = 0x17;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -147,16 +154,20 @@ def SRL : InstrArith<SRL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
 // -------------------------------------------------------------------------- //
 
 def CMPEQ : InstrArith<CMPEQ_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPEQ $Rd, $Rs1, $Rs2", []>;
+            "CMPEQ $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (seteq (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def CMPNE : InstrArith<CMPNE_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPNE $Rd, $Rs1, $Rs2", []>;
+            "CMPNE $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (setne (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def CMPLT : InstrArith<CMPLT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPLT $Rd, $Rs1, $Rs2", []>;
+            "CMPLT $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (setlt (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 def CMPGT : InstrArith<CMPGT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPGT $Rd, $Rs1, $Rs2", []>;
+            "CMPGT $Rd, $Rs1, $Rs2",
+          [(set (i64 GPR:$Rd), (setgt (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
 
 // -------------------------------------------------------------------------- //
 // Memory Access
@@ -217,6 +228,29 @@ let isCall = 1, Uses = [R1], Defs = [R4] in {
     let Inst{7 - 0}   = CALL_OPC;   // Opcode
     let Inst{12 - 8}  = Rs1;        // Source register
     let Inst{63 - 13} = 0;          // Reserved
+  }
+}
+
+let isBranch = 1, isBarrier = 1, isTerminator = 1 in {
+  def BRCOND : InstSRRArch<(outs), (ins GPR:$Rs1, BrTarget:$Addr),
+                           "BRCOND $Rs1, $Addr",
+                           [(brcond GPR:$Rs1, bb:$Addr)]> {
+    bits<5> Rs1;
+    bits<32> Addr;
+
+    let Inst{7 - 0}   = BRCOND_OPC; // Opcode
+    let Inst{12 - 8}  = Rs1;        // Source register
+    let Inst{44 - 13} = Addr;       // Address
+    let Inst{63 - 45} = 0;          // Reserved
+  }
+
+  def BR : InstSRRArch<(outs), (ins BrTarget:$Addr),
+                       "BR $Addr", [(br bb:$Addr)]> {
+    bits<32> Addr;
+
+    let Inst{7 - 0}   = BR_OPC;     // Opcode
+    let Inst{39 - 8}  = Addr;       // Address
+    let Inst{63 - 40} = 0;          // Reserved
   }
 }
 

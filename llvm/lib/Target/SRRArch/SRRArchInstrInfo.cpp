@@ -101,10 +101,75 @@ bool SRRArchInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
                                      MachineBasicBlock *&FalseBlock,
                                      SmallVectorImpl<MachineOperand> &Condition,
                                      bool AllowModify) const {
-  llvm_unreachable("analyzeBranch not implemented yet");
+  // Iterator to current instruction being considered.
+  MachineBasicBlock::iterator Instruction = MBB.end();
+
+  // Start from the bottom of the block and work up, examining the
+  // terminator instructions.
+  while (Instruction != MBB.begin()) {
+    --Instruction;
+
+    // Skip over debug instructions.
+    if (Instruction->isDebugInstr())
+      continue;
+
+    // Working from the bottom, when we see a non-terminator
+    // instruction, we're done.
+    if (!isUnpredicatedTerminator(*Instruction))
+      break;
+
+    // A terminator that isn't a branch can't easily be handled
+    // by this analysis.
+    if (!Instruction->isBranch())
+      return true;
+
+    // Handle unconditional branches.
+    unsigned Opcode = Instruction->getOpcode();
+    if (Opcode == SRRArch::BR) {
+      if (!AllowModify) {
+        TrueBlock = Instruction->getOperand(0).getMBB();
+        continue;
+      }
+
+      // If the block has any instructions after a branch, delete them.
+      MBB.erase(std::next(Instruction), MBB.end());
+
+      Condition.clear();
+      FalseBlock = nullptr;
+
+      // Delete the jump if it's equivalent to a fall-through.
+      if (MBB.isLayoutSuccessor(Instruction->getOperand(0).getMBB())) {
+        TrueBlock = nullptr;
+        Instruction->eraseFromParent();
+        Instruction = MBB.end();
+        continue;
+      }
+
+      // TrueBlock is used to indicate the unconditional destination.
+      TrueBlock = Instruction->getOperand(0).getMBB();
+      continue;
+    }
+
+    // Handle conditional branches
+    if (Opcode != SRRArch::BRCOND)
+      return true; // Unknown opcode.
+
+    // Multiple conditional branches are not handled here so only proceed if
+    // there are no conditions enqueued.
+    if (Condition.empty()) {
+      // TrueBlock is the target of the previously seen unconditional branch.
+      FalseBlock = TrueBlock;
+      TrueBlock = Instruction->getOperand(1).getMBB();
+      Condition.push_back(Instruction->getOperand(0));
+      continue;
+    }
+
+    // Multiple conditional branches are not handled.
+    return true;
+  }
 
   // Return false indicating branch successfully analyzed.
-  return true;
+  return false;
 }
 
 // reverseBranchCondition - Reverses the branch condition of the specified
