@@ -39,6 +39,22 @@ SRRArch::SRRArch(Ctx &ctx) : TargetInfo(ctx) {
   // symbolicRel = R_AMDGPU_ABS64;
 }
 
+static void writeGVBLAddress(uint8_t *loc, uint64_t val) {
+  // The 32-bit value needs to be placed starting at bit 13
+  uint64_t v = (uint64_t)val << 13;
+
+  // Save the register field (bits 0-4 of byte 1)
+  uint8_t reg_field = loc[1] & 0x1F; // Preserve low 5 bits
+
+  // Write bytes 1-5 (bits 8-47)
+  for (int i = 1; i <= 5; i++) {
+    loc[i] = (v >> (i * 8)) & 0xFF;
+  }
+
+  // Restore the register field
+  loc[1] = (loc[1] & ~0x1F) | reg_field;
+}
+
 void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
                        uint64_t val) const {
   switch (rel.type) {
@@ -48,23 +64,21 @@ void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
   case R_SRRARCH_64:
     write64le(loc, val);
     break;
-  case R_SRRARCH_BRANCH:
   case R_SRRARCH_GV: {
     checkUInt(ctx, loc, val, 32, rel);
 
-    // The 32-bit value needs to be placed starting at bit 13
-    uint64_t v = (uint64_t)val << 13;
+    writeGVBLAddress(loc, val);
+    break;
+  }
+  case R_SRRARCH_BRANCH: {
+    checkUInt(ctx, loc, val, 32, rel);
 
-    // Save the register field (bits 0-4 of byte 1)
-    uint8_t reg_field = loc[1] & 0x1F; // Preserve low 5 bits
-
-    // Write bytes 1-5 (bits 8-47)
-    for (int i = 1; i <= 5; i++) {
-      loc[i] = (v >> (i * 8)) & 0xFF;
+    // unconditional branch
+    if (loc[0] == 0x17) {
+      write32le(loc + 1, val);
+    } else {
+      writeGVBLAddress(loc, val);
     }
-
-    // Restore the register field
-    loc[1] = (loc[1] & ~0x1F) | reg_field;
     break;
   }
   default:

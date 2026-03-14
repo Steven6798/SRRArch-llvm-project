@@ -231,7 +231,7 @@ let isCall = 1, Uses = [R1], Defs = [R4] in {
   }
 }
 
-let isBranch = 1, isBarrier = 1, isTerminator = 1 in {
+let isBranch = 1, isTerminator = 1 in {
   def BRCOND : InstSRRArch<(outs), (ins GPR:$Rs1, BrTarget:$Addr),
                            "BRCOND $Rs1, $Addr",
                            [(brcond GPR:$Rs1, bb:$Addr)]> {
@@ -243,7 +243,9 @@ let isBranch = 1, isBarrier = 1, isTerminator = 1 in {
     let Inst{44 - 13} = Addr;       // Address
     let Inst{63 - 45} = 0;          // Reserved
   }
+}
 
+let isBranch = 1, isBarrier = 1, isTerminator = 1 in {
   def BR : InstSRRArch<(outs), (ins BrTarget:$Addr),
                        "BR $Addr", [(br bb:$Addr)]> {
     bits<32> Addr;
