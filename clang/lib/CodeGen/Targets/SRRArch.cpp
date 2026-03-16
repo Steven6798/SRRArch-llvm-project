@@ -1,4 +1,4 @@
-//===- SRRArch.cpp ----------------------------------------------------------===//
+//===- SRRArch.cpp---------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,8 +25,6 @@ class SRRArchABIInfo : public DefaultABIInfo {
 public:
   SRRArchABIInfo(CodeGen::CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
 
-  bool shouldUseInReg(QualType Ty, CCState &State) const;
-
   void computeInfo(CGFunctionInfo &FI) const override {
     CCState State;
     // SRRArch uses 4 registers to pass arguments unless the function has the
@@ -48,25 +46,8 @@ public:
 };
 } // end anonymous namespace
 
-bool SRRArchABIInfo::shouldUseInReg(QualType Ty, CCState &State) const {
-  unsigned Size = getContext().getTypeSize(Ty);
-  unsigned SizeInRegs = llvm::alignTo(Size, 32U) / 32U;
-
-  if (SizeInRegs == 0)
-    return false;
-
-  if (SizeInRegs > State.FreeRegs) {
-    State.FreeRegs = 0;
-    return false;
-  }
-
-  State.FreeRegs -= SizeInRegs;
-
-  return true;
-}
-
 ABIArgInfo SRRArchABIInfo::getIndirectResult(QualType Ty, bool ByVal,
-                                           CCState &State) const {
+                                             CCState &State) const {
   if (!ByVal) {
     if (State.FreeRegs) {
       --State.FreeRegs; // Non-byval indirects just use one pointer.
@@ -77,16 +58,16 @@ ABIArgInfo SRRArchABIInfo::getIndirectResult(QualType Ty, bool ByVal,
   }
 
   // Compute the byval alignment.
-  const unsigned MinABIStackAlignInBytes = 4;
+  const unsigned MinABIStackAlignInBytes = 8;
   unsigned TypeAlign = getContext().getTypeAlign(Ty) / 8;
   return ABIArgInfo::getIndirect(
-      CharUnits::fromQuantity(4),
+      CharUnits::fromQuantity(8),
       /*AddrSpace=*/getDataLayout().getAllocaAddrSpace(), /*ByVal=*/true,
       /*Realign=*/TypeAlign > MinABIStackAlignInBytes);
 }
 
 ABIArgInfo SRRArchABIInfo::classifyArgumentType(QualType Ty,
-                                              CCState &State) const {
+                                                CCState &State) const {
   // Check with the C++ ABI first.
   const RecordType *RT = Ty->getAsCanonical<RecordType>();
   if (RT) {
@@ -110,13 +91,13 @@ ABIArgInfo SRRArchABIInfo::classifyArgumentType(QualType Ty,
       return ABIArgInfo::getIgnore();
 
     llvm::LLVMContext &LLVMContext = getVMContext();
-    unsigned SizeInRegs = (getContext().getTypeSize(Ty) + 31) / 32;
+    unsigned SizeInRegs = (getContext().getTypeSize(Ty) + 63) / 64;
     if (SizeInRegs <= State.FreeRegs) {
-      llvm::IntegerType *Int32 = llvm::Type::getInt32Ty(LLVMContext);
-      SmallVector<llvm::Type *, 3> Elements(SizeInRegs, Int32);
+      llvm::IntegerType *Int64 = llvm::Type::getInt64Ty(LLVMContext);
+      SmallVector<llvm::Type *, 3> Elements(SizeInRegs, Int64);
       llvm::Type *Result = llvm::StructType::get(LLVMContext, Elements);
       State.FreeRegs -= SizeInRegs;
-      return ABIArgInfo::getDirectInReg(Result);
+      return ABIArgInfo::getDirect(Result);
     } else {
       State.FreeRegs = 0;
     }
@@ -127,20 +108,14 @@ ABIArgInfo SRRArchABIInfo::classifyArgumentType(QualType Ty,
   if (const auto *ED = Ty->getAsEnumDecl())
     Ty = ED->getIntegerType();
 
-  bool InReg = shouldUseInReg(Ty, State);
-
   // Don't pass >64 bit integers in registers.
   if (const auto *EIT = Ty->getAs<BitIntType>())
     if (EIT->getNumBits() > 64)
       return getIndirectResult(Ty, /*ByVal=*/true, State);
 
-  if (isPromotableIntegerTypeForABI(Ty)) {
-    if (InReg)
-      return ABIArgInfo::getDirectInReg();
+  if (isPromotableIntegerTypeForABI(Ty))
     return ABIArgInfo::getExtend(Ty);
-  }
-  if (InReg)
-    return ABIArgInfo::getDirectInReg();
+
   return ABIArgInfo::getDirect();
 }
 
@@ -150,7 +125,7 @@ public:
   SRRArchTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<SRRArchABIInfo>(CGT)) {}
 };
-}
+} // namespace
 
 std::unique_ptr<TargetCodeGenInfo>
 CodeGen::createSRRArchTargetCodeGenInfo(CodeGenModule &CGM) {
