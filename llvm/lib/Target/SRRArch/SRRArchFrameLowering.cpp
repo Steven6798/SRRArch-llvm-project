@@ -80,37 +80,45 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
   Register RA = SRI->getRetAddrRegister();
 
   if (hasFP(MF)) {
-    // Allocate space for saved RA
+    // Allocate space for both RA and FP (16 bytes)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+        .addImm(16) // 8 for RA + 8 for FP
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+        .addReg(SP)
+        .addReg(SRRArch::R9)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    // Save RA at [SP + 8] (higher address)
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
         .addImm(8)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::ADD), SRRArch::R9)
         .addReg(SP)
         .addReg(SRRArch::R9)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    // Save RA at (sp)
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::STORE))
-        .addReg(SP)
+        .addReg(SRRArch::R9)
         .addReg(RA)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    // Allocate space for saved FP
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
-        .addReg(SP)
-        .addReg(SRRArch::R9)
-        .setMIFlag(MachineInstr::FrameSetup);
-
-    // Save old FP at (sp)
+    // Save FP at [SP] (lower address)
     BuildMI(MBB, MBBI, DL, SII.get(SRRArch::STORE))
         .addReg(SP)
         .addReg(FP)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    // Set new FP to current SP
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::MOV), FP)
+    // Set new FP to SP + 16 to point ABOVE the saved registers
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+        .addImm(16)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::ADD), FP)
         .addReg(SP)
+        .addReg(SRRArch::R9)
         .setMIFlag(MachineInstr::FrameSetup);
   }
 

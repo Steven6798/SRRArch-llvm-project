@@ -74,6 +74,12 @@ SDValue SRRArchTargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineRegisterInfo &RegInfo = MF.getRegInfo();
+  // SRRArchMachineFunctionInfo *SMFI =
+  // MF.getInfo<SRRArchMachineFunctionInfo>();
+
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
@@ -81,7 +87,64 @@ SDValue SRRArchTargetLowering::LowerFormalArguments(
   CCInfo.AnalyzeFormalArguments(Ins, CC_SRRArch);
 
   for (const CCValAssign &VA : ArgLocs) {
-    llvm_unreachable("Arguments not supported yet");
+    if (VA.isRegLoc()) {
+      // Arguments passed in registers
+      EVT RegVT = VA.getLocVT();
+      switch (RegVT.getSimpleVT().SimpleTy) {
+      case MVT::i64: {
+        Register VReg = RegInfo.createVirtualRegister(&SRRArch::GPRRegClass);
+        RegInfo.addLiveIn(VA.getLocReg(), VReg);
+        SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, RegVT);
+
+        // If this is an 8/16/32-bit value, it is really passed promoted to 64
+        // bits. Insert an assert[sz]ext to capture this, then truncate to the
+        // right size.
+        if (VA.getLocInfo() == CCValAssign::SExt)
+          ArgValue = DAG.getNode(ISD::AssertSext, DL, RegVT, ArgValue,
+                                 DAG.getValueType(VA.getValVT()));
+        else if (VA.getLocInfo() == CCValAssign::ZExt)
+          ArgValue = DAG.getNode(ISD::AssertZext, DL, RegVT, ArgValue,
+                                 DAG.getValueType(VA.getValVT()));
+
+        if (VA.getLocInfo() != CCValAssign::Full)
+          ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+
+        InVals.push_back(ArgValue);
+        break;
+      }
+      default:
+        LLVM_DEBUG(dbgs() << "LowerFormalArguments Unhandled argument type: "
+                          << RegVT << "\n");
+        llvm_unreachable("unhandled argument type");
+      }
+    } else {
+      // Only arguments passed on the stack should make it here.
+      assert(VA.isMemLoc());
+      // Load the argument to a virtual register
+      unsigned ObjSize = VA.getLocVT().getSizeInBits() / 8;
+      // Check that the argument fits in stack slot
+      if (ObjSize > 8) {
+        errs() << "LowerFormalArguments Unhandled argument type: "
+               << VA.getLocVT() << "\n";
+      }
+      // Create the frame index object for this incoming parameter...
+      int FI = MFI.CreateFixedObject(ObjSize, VA.getLocMemOffset(), true);
+
+      // Create the SelectionDAG nodes corresponding to a load
+      // from this parameter
+      SDValue FIN = DAG.getFrameIndex(FI, MVT::i64);
+      InVals.push_back(DAG.getLoad(
+          VA.getLocVT(), DL, Chain, FIN,
+          MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI)));
+    }
+  }
+
+  if (MF.getFunction().hasStructRetAttr()) {
+    llvm_unreachable("StructRet argument type not supported yet");
+  }
+
+  if (IsVarArg) {
+    llvm_unreachable("Variable argument not supported yet");
   }
 
   return Chain;
@@ -120,6 +183,10 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // Create local copies for byval args.
   SmallVector<SDValue, 8> ByValArgs;
   for (unsigned I = 0, E = Outs.size(); I != E; ++I) {
+    ISD::ArgFlagsTy Flags = Outs[I].Flags;
+    if (!Flags.isByVal())
+      continue;
+
     llvm_unreachable("function call byval arguments not supported yet");
   }
 
@@ -127,11 +194,10 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   SmallVector<std::pair<unsigned, SDValue>, 4> RegsToPass;
   SmallVector<SDValue, 12> MemOpChains;
-  // SDValue StackPtr;
+  SDValue StackPtr;
 
   // Walk the register/memloc assignments, inserting copies/loads.
   for (unsigned I = 0, J = 0, E = ArgLocs.size(); I != E; ++I) {
-    llvm_unreachable("function call arguments not supported yet");
     CCValAssign &VA = ArgLocs[I];
     SDValue Arg = OutVals[I];
     ISD::ArgFlagsTy Flags = Outs[I].Flags;
@@ -162,9 +228,26 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     if (VA.isRegLoc()) {
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
     } else {
-      llvm_unreachable("Arguments passed on the stack not supported yet");
+      assert(VA.isMemLoc());
+
+      if (StackPtr.getNode() == nullptr)
+        StackPtr = DAG.getCopyFromReg(Chain, DL, SRRArch::R1,
+                                      getPointerTy(DAG.getDataLayout()));
+
+      SDValue PtrOff =
+          DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr,
+                      DAG.getIntPtrConstant(VA.getLocMemOffset(), DL));
+
+      MemOpChains.push_back(
+          DAG.getStore(Chain, DL, Arg, PtrOff, MachinePointerInfo()));
     }
   }
+
+  // Transform all store nodes into one single node because all store nodes are
+  // independent of each other.
+  if (!MemOpChains.empty())
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
+                        ArrayRef<SDValue>(&MemOpChains[0], MemOpChains.size()));
 
   SDValue InGlue;
 
@@ -198,7 +281,6 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SDValue PC = DAG.getRegister(SRRArch::R0, getPointerTy(DAG.getDataLayout()));
   SDValue Offset = DAG.getConstant(24, DL, MVT::i64);
   SDValue PCAddr = DAG.getNode(ISD::ADD, DL, MVT::i64, PC, Offset);
-  // InGlue = Chain.getValue(1);
 
   Chain = DAG.getCopyToReg(Chain, DL, SRRArch::R4, PCAddr, InGlue);
   InGlue = Chain.getValue(1);
@@ -223,7 +305,11 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   // Copy all of the result registers out of their specified physreg.
   for (unsigned I = 0; I != RVLocs.size(); ++I) {
-    llvm_unreachable("Function call returns not supported yet");
+    Chain = DAG.getCopyFromReg(Chain, DL, RVLocs[I].getLocReg(),
+                               RVLocs[I].getValVT(), InGlue)
+                .getValue(1);
+    InGlue = Chain.getValue(2);
+    InVals.push_back(Chain.getValue(0));
   }
 
   return Chain;

@@ -33,7 +33,8 @@ def SRRArchRetGlue      : SDNode<"SRRArchISD::RET_GLUE", SDT_SRRArchRetGlue,
 def SRRArchGENINT       : SDNode<"SRRArchISD::GENINT", SDT_SRRArchGENINT,
                                  []>;
 def SRRArchCALL         : SDNode<"SRRArchISD::CALL", SDT_SRRArchCALL,
-                                 [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+                                 [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                                  SDNPVariadic]>;
 def SRRArchCallSeqStart : SDNode<"ISD::CALLSEQ_START", SDT_SRRArchCallSeqStart,
                                  [SDNPHasChain, SDNPOutGlue]>;
 def SRRArchCallSeqEnd   : SDNode<"ISD::CALLSEQ_END", SDT_SRRArchCallSeqEnd,
@@ -175,39 +176,14 @@ def CMPGT : InstrArith<CMPGT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
 
 def STORE : InstrMemory<STORE_OPC, (outs), (ins GPR:$Rd, GPR:$Rs1),
             "STORE $Rd, $Rs1",
-            [(store (i64 GPR:$Rs1), (i64 tframeindex:$Rd))]>;
+            [(store (i64 GPR:$Rs1), (i64 GPR:$Rd))]>;
 
 def LOAD : InstrMemory<LOAD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1),
            "LOAD $Rd, $Rs1",
-           [(set (i64 GPR:$Rd), (load (i64 tframeindex:$Rs1)))]>;
+           [(set (i64 GPR:$Rd), (load (i64 GPR:$Rs1)))]>;
 
-def : Pat<(load GPR:$Rs1), (LOAD GPR:$Rs1)>;
-
-
-def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
-  let Inst{7 - 0} = NOP_OPC; // Opcode
-}
-
-def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i64lo32z:$Imm), "GENINT $Rd, $Imm",
-             [(set (i64 GPR:$Rd), (SRRArchGENINT (i64 tglobaladdr:$Imm)))]> {
-  bits<5> Rd;
-  bits<32> Imm;
-
-  let Inst{7 - 0}   = GENINT_OPC; // Opcode
-  let Inst{12 - 8}  = Rd;         // Destination register
-  let Inst{44 - 13} = Imm;        // Immediate
-  let Inst{63 - 45} = 0;          // Reserved
-}
-
-def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
-  bits<5> Rd;
-  bits<5> Rs1;
-
-  let Inst{7 - 0}   = MOV_OPC; // Opcode
-  let Inst{12 - 8}  = Rd;      // Destination Register
-  let Inst{17 - 13} = Rs1;     // Source Register 1
-  let Inst{63 - 17} = 0;       // Reserved
-}
+def : Pat<(load tframeindex:$Rs1), (LOAD GPR:$Rs1)>;
+def : Pat<(store GPR:$Rs1, tframeindex:$Rd), (STORE GPR:$Rd, GPR:$Rs1)>;
 
 // -------------------------------------------------------------------------- //
 // Branch
@@ -268,4 +244,29 @@ let Defs = [R1], Uses = [R1], isPseudo = 1 in {
   def ADJCALLSTACKUP   : InstSRRArch<(outs), (ins i64imm:$amt1, i64imm:$amt2),
                                      "#ADJCALLSTACKUP $amt1 $amt2",
                                 [(SRRArchCallSeqEnd timm:$amt1, timm:$amt2)]>;
+}
+
+def NOP : InstSRRArch<(outs), (ins), "NOP", []> {
+  let Inst{7 - 0} = NOP_OPC; // Opcode
+}
+
+def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i64lo32z:$Imm), "GENINT $Rd, $Imm",
+             [(set (i64 GPR:$Rd), (SRRArchGENINT (i64 tglobaladdr:$Imm)))]> {
+  bits<5> Rd;
+  bits<32> Imm;
+
+  let Inst{7 - 0}   = GENINT_OPC; // Opcode
+  let Inst{12 - 8}  = Rd;         // Destination register
+  let Inst{44 - 13} = Imm;        // Immediate
+  let Inst{63 - 45} = 0;          // Reserved
+}
+
+def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
+  bits<5> Rd;
+  bits<5> Rs1;
+
+  let Inst{7 - 0}   = MOV_OPC; // Opcode
+  let Inst{12 - 8}  = Rd;      // Destination Register
+  let Inst{17 - 13} = Rs1;     // Source Register 1
+  let Inst{63 - 17} = 0;       // Reserved
 }
