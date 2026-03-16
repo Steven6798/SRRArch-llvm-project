@@ -150,28 +150,41 @@ void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
   Register SP = SRI->getStackRegister();
   Register RA = SRI->getRetAddrRegister();
 
-  // Restore the stack pointer using the callee's frame pointer value.
-  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::MOV), SP)
-      .addReg(FP)
-      .setMIFlag(MachineInstr::FrameDestroy);
-
-  // Restore the frame pointer from the stack.
-  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), FP)
-      .addReg(SP)
-      .setMIFlag(MachineInstr::FrameDestroy);
-
-  // Calculate address for return address (SP + 8)
+  // Restore the return address (R4) from the stack.
   BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
       .addImm(8)
       .setMIFlag(MachineInstr::FrameDestroy);
 
-  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::ADD), SRRArch::R9)
-      .addReg(SP)
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SRRArch::R9)
+      .addReg(FP)
       .addReg(SRRArch::R9)
       .setMIFlag(MachineInstr::FrameDestroy);
 
-  // Restore the return address (R4) from the stack.
   BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), RA)
+      .addReg(SRRArch::R9)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  // Restore the frame pointer from the stack.
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+      .addImm(16)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SRRArch::R9)
+      .addReg(FP)
+      .addReg(SRRArch::R9)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), FP)
+      .addReg(SRRArch::R9)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  // Restore the stack pointer using the frame pointer value.
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+      .addImm(16)
+      .setMIFlag(MachineInstr::FrameDestroy);
+
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+      .addReg(FP)
       .addReg(SRRArch::R9)
       .setMIFlag(MachineInstr::FrameDestroy);
 
