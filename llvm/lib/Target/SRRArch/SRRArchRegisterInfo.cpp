@@ -68,6 +68,8 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   bool HasFP = TFI->hasFP(MF);
   DebugLoc DL = MI.getDebugLoc();
 
+  LLVM_DEBUG(dbgs() << "Eliminating frame index of: " << MI);
+
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
 
   int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
@@ -84,7 +86,7 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   // Replace frame index with a frame pointer reference.
   unsigned Opc = MI.getOpcode();
-  if (Opc == SRRArch::LOAD || Opc == SRRArch::STORE) {
+  if (Opc == SRRArch::LOAD || Opc == SRRArch::STORE || Opc == SRRArch::ADD) {
     assert(RS && "Register scavenging must be on");
 
     RS->enterBasicBlockEnd(MBB);

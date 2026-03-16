@@ -70,6 +70,31 @@ SDValue SRRArchTargetLowering::LowerOperation(SDValue Op,
 
 #include "SRRArchGenCallingConv.inc"
 
+static bool CC_SRRArch_VarArg(unsigned ValNo, MVT ValVT, MVT LocVT,
+                              CCValAssign::LocInfo LocInfo,
+                              ISD::ArgFlagsTy ArgFlags, Type *OrigTy,
+                              CCState &State) {
+  // Handle fixed arguments with default CC.
+  if (!ArgFlags.isVarArg())
+    return CC_SRRArch(ValNo, ValVT, LocVT, LocInfo, ArgFlags, OrigTy, State);
+
+  // Promote i8/i16/i32 args to i64
+  if (LocVT == MVT::i8 || LocVT == MVT::i16 || LocVT == MVT::i32) {
+    LocVT = MVT::i64;
+    if (ArgFlags.isSExt())
+      LocInfo = CCValAssign::SExt;
+    else if (ArgFlags.isZExt())
+      LocInfo = CCValAssign::ZExt;
+    else
+      LocInfo = CCValAssign::AExt;
+  }
+
+  // VarArgs get passed on stack
+  unsigned Offset = State.AllocateStack(8, Align(8));
+  State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, LocInfo));
+  return false;
+}
+
 SDValue SRRArchTargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
@@ -172,7 +197,7 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
 
   if (IsVarArg) {
-    llvm_unreachable("function call variable arguments not supported yet");
+    ArgCCInfo.AnalyzeCallOperands(Outs, CC_SRRArch_VarArg);
   } else {
     ArgCCInfo.AnalyzeCallOperands(Outs, CC_SRRArch);
   }
