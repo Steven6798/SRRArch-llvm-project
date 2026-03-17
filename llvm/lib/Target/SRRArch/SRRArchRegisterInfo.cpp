@@ -85,39 +85,33 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
 
   // Replace frame index with a frame pointer reference.
-  unsigned Opc = MI.getOpcode();
-  if (Opc == SRRArch::LOAD || Opc == SRRArch::STORE || Opc == SRRArch::ADD) {
-    assert(RS && "Register scavenging must be on");
+  assert(RS && "Register scavenging must be on");
 
-    RS->enterBasicBlockEnd(MBB);
-    RS->backward(std::next(II));
+  RS->enterBasicBlockEnd(MBB);
+  RS->backward(std::next(II));
 
-    Register ScratchReg = RS->scavengeRegisterBackwards(
-        SRRArch::GPRRegClass, II, /*RestoreAfter=*/false, /*SPAdj=*/0,
-        /*AllowSpill=*/true);
-    assert(ScratchReg != 0 && "scratch reg was 0");
-    RS->setRegUsed(ScratchReg);
+  Register ScratchReg = RS->scavengeRegisterBackwards(
+      SRRArch::GPRRegClass, II, /*RestoreAfter=*/false, /*SPAdj=*/0,
+      /*AllowSpill=*/true);
+  assert(ScratchReg != 0 && "scratch reg was 0");
+  RS->setRegUsed(ScratchReg);
 
-    bool HasNegOffset = false;
-    if (Offset < 0) {
-      HasNegOffset = true;
-      Offset = -Offset;
-    }
-
-    BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
-
-    unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
-    BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
-        .addReg(FrameReg)
-        .addReg(ScratchReg);
-
-    MI.getOperand(FIOperandNum)
-        .ChangeToRegister(ScratchReg, /*isDef=*/false, /*isImp=*/false,
-                          /*isKill=*/true);
-    return false;
+  bool HasNegOffset = false;
+  if (Offset < 0) {
+    HasNegOffset = true;
+    Offset = -Offset;
   }
 
-  llvm_unreachable("Unexpected opcode in frame index operation");
+  BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
+
+  unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
+  BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
+      .addReg(FrameReg)
+      .addReg(ScratchReg);
+
+  MI.getOperand(FIOperandNum)
+      .ChangeToRegister(ScratchReg, /*isDef=*/false, /*isImp=*/false,
+                        /*isKill=*/true);
   return false;
 }
 

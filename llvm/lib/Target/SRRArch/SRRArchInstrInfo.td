@@ -81,14 +81,23 @@ defvar CMPEQ_OPC  = 0x0c;
 defvar CMPNE_OPC  = 0x0d;
 defvar CMPLT_OPC  = 0x0e;
 defvar CMPGT_OPC  = 0x0f;
-defvar STORE_OPC  = 0x10;
-defvar LOAD_OPC   = 0x11;
-defvar RETURN_OPC = 0x12;
-defvar GENINT_OPC = 0x13;
-defvar MOV_OPC    = 0x14;
-defvar CALL_OPC   = 0x15;
-defvar BRCOND_OPC = 0x16;
-defvar BR_OPC     = 0x17;
+defvar STOREB_OPC = 0x10;
+defvar STOREH_OPC = 0x11;
+defvar STOREW_OPC = 0x12;
+defvar STORE_OPC  = 0x13;
+defvar LOADBZ_OPC = 0x14;
+defvar LOADBS_OPC = 0x15;
+defvar LOADHZ_OPC = 0x16;
+defvar LOADHS_OPC = 0x17;
+defvar LOADWZ_OPC = 0x18;
+defvar LOADWS_OPC = 0x19;
+defvar LOAD_OPC   = 0x1a;
+defvar RETURN_OPC = 0x1b;
+defvar CALL_OPC   = 0x1c;
+defvar BRCOND_OPC = 0x1d;
+defvar BR_OPC     = 0x1e; // Keep this opcode in sync with the linker
+defvar GENINT_OPC = 0x1f;
+defvar MOV_OPC    = 0x20;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -174,16 +183,42 @@ def CMPGT : InstrArith<CMPGT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
 // Memory Access
 // -------------------------------------------------------------------------- //
 
-def STORE : InstrMemory<STORE_OPC, (outs), (ins GPR:$Rd, GPR:$Rs1),
-            "STORE $Rd, $Rs1",
-            [(store (i64 GPR:$Rs1), (i64 GPR:$Rd))]>;
+multiclass LoadBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
+  def "" : InstrMemory<Opc, (outs GPR:$Rd), (ins GPR:$Rs1),
+            !strconcat(AsmStr, " $Rd, $Rs1"),
+            [(set GPR:$Rd, (OpNode GPR:$Rs1))]>;
 
-def LOAD : InstrMemory<LOAD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1),
-           "LOAD $Rd, $Rs1",
-           [(set (i64 GPR:$Rd), (load (i64 GPR:$Rs1)))]>;
+}
 
-def : Pat<(load tframeindex:$Rs1), (LOAD GPR:$Rs1)>;
-def : Pat<(store GPR:$Rs1, tframeindex:$Rd), (STORE GPR:$Rd, GPR:$Rs1)>;
+defm LOADBZ : LoadBase<LOADBZ_OPC, "LOADBZ", zextloadi8>;
+defm LOADBS : LoadBase<LOADBS_OPC, "LOADBS", sextloadi8>;
+defm LOADHZ : LoadBase<LOADHZ_OPC, "LOADHZ", zextloadi16>;
+defm LOADHS : LoadBase<LOADHS_OPC, "LOADHS", sextloadi16>;
+defm LOADWZ : LoadBase<LOADWZ_OPC, "LOADWZ", zextloadi32>;
+defm LOADWS : LoadBase<LOADWS_OPC, "LOADWS", sextloadi32>;
+defm LOAD   : LoadBase<LOAD_OPC, "LOAD", load>;
+
+// extload -> zextload
+def : Pat<(extloadi8 GPR:$Rs1), (LOADBZ GPR:$Rs1)>;
+def : Pat<(extloadi16 GPR:$Rs1), (LOADHZ GPR:$Rs1)>;
+def : Pat<(extloadi32 GPR:$Rs1), (LOADWZ GPR:$Rs1)>;
+
+// frame index matching
+// def : Pat<(load tframeindex:$Rs1), (LOAD GPR:$Rs1)>;
+
+multiclass StoreBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
+  def "" : InstrMemory<Opc, (outs), (ins GPR:$Rd, GPR:$Rs1),
+            !strconcat(AsmStr, " $Rd, $Rs1"), [(OpNode GPR:$Rs1, GPR:$Rd)]>;
+
+}
+
+defm STOREB : StoreBase<STOREB_OPC, "STOREB", truncstorei8>;
+defm STOREH : StoreBase<STOREH_OPC, "STOREH", truncstorei16>;
+defm STOREW : StoreBase<STOREW_OPC, "STOREW", truncstorei32>;
+defm STORE  : StoreBase<STORE_OPC, "STORE", store>;
+
+// frame index matching
+// def : Pat<(store GPR:$Rs1, tframeindex:$Rd), (STORE GPR:$Rd, GPR:$Rs1)>;
 
 // -------------------------------------------------------------------------- //
 // Branch
