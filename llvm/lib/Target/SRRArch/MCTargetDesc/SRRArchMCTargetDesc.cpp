@@ -88,8 +88,7 @@ public:
                       uint64_t &Target) const override {
     if (Inst.getNumOperands() == 0)
       return false;
-    if (!isConditionalBranch(Inst) && !isUnconditionalBranch(Inst) &&
-        !isCall(Inst))
+    if (!isConditionalBranch(Inst) && !isUnconditionalBranch(Inst))
       return false;
 
     unsigned Opc = Inst.getOpcode();
