@@ -301,19 +301,6 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   for (const auto &[Reg, N] : RegsToPass)
     Ops.push_back(DAG.getRegister(Reg, N.getValueType()));
 
-  // Set pc + 24(8*3) to the RA register. There are 3 instruction that we have
-  // to jump to get the address after the call: ADD, MOV and CALL
-  SDValue Offset = DAG.getConstant(24, DL, MVT::i64);
-  // Use Copy to glue the instructions together
-  SDValue PCVal = DAG.getCopyFromReg(Chain, DL, SRRArch::R0,
-                                     getPointerTy(DAG.getDataLayout()));
-  Chain = PCVal.getValue(1); // Update chain
-
-  SDValue PCAddr = DAG.getNode(ISD::ADD, DL, MVT::i64, PCVal, Offset);
-
-  Chain = DAG.getCopyToReg(Chain, DL, SRRArch::R4, PCAddr, InGlue);
-  InGlue = Chain.getValue(1);
-
   if (InGlue.getNode())
     Ops.push_back(InGlue);
 
