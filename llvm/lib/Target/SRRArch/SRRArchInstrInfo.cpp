@@ -16,6 +16,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "srrarch-instr-info"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "SRRArchGenInstrInfo.inc"
 
@@ -37,7 +39,18 @@ void SRRArchInstrInfo::storeRegToStackSlot(
     Register SourceRegister, bool IsKill, int FrameIndex,
     const TargetRegisterClass *RegisterClass, Register /*VReg*/,
     MachineInstr::MIFlag /*Flags*/) const {
-  llvm_unreachable("storeRegToStackSlot not implemented yet");
+  DebugLoc DL;
+  if (Position != MBB.end())
+    DL = Position->getDebugLoc();
+
+  if (!SRRArch::GPRRegClass.hasSubClassEq(RegisterClass))
+    llvm_unreachable("Can't store this register to stack slot");
+
+  MachineInstr *Store = BuildMI(MBB, Position, DL, get(SRRArch::STORE))
+                            .addFrameIndex(FrameIndex)
+                            .addReg(SourceRegister, getKillRegState(IsKill));
+
+  LLVM_DEBUG(dbgs() << "Inserting store to stack slot:" << *Store << "\n");
 }
 
 void SRRArchInstrInfo::loadRegFromStackSlot(
@@ -45,7 +58,18 @@ void SRRArchInstrInfo::loadRegFromStackSlot(
     Register DestinationRegister, int FrameIndex,
     const TargetRegisterClass *RegisterClass, Register /*VReg*/,
     unsigned /*SubReg*/, MachineInstr::MIFlag /*Flags*/) const {
-  llvm_unreachable("loadRegFromStackSlot not implemented yet");
+  DebugLoc DL;
+  if (Position != MBB.end())
+    DL = Position->getDebugLoc();
+
+  if (!SRRArch::GPRRegClass.hasSubClassEq(RegisterClass))
+    llvm_unreachable("Can't load this register from stack slot");
+
+  MachineInstr *Load =
+      BuildMI(MBB, Position, DL, get(SRRArch::LOAD), DestinationRegister)
+          .addFrameIndex(FrameIndex);
+
+  LLVM_DEBUG(dbgs() << "Inserting load from stack slot:" << *Load << "\n");
 }
 
 bool SRRArchInstrInfo::areMemAccessesTriviallyDisjoint(
