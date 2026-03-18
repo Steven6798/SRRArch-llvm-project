@@ -114,7 +114,7 @@ void SRRArchMCCodeEmitter::encodeInstruction(
   LLVM_DEBUG(dbgs() << "Encoding: " << Inst << "\n");
 
   // Get instruction encoding and emit it
-  unsigned Value = getBinaryCodeForInstr(Inst, Fixups, SubtargetInfo);
+  uint64_t Value = getBinaryCodeForInstr(Inst, Fixups, SubtargetInfo);
   ++MCNumEmitted; // Keep track of the number of emitted insns.
 
   support::endian::write<uint64_t>(CB, Value, llvm::endianness::little);

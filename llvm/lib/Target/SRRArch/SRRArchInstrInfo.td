@@ -53,7 +53,7 @@ def LO32 : SDNodeXForm<imm, [{
 def i64lo32z : Operand<i64>, PatLeaf<(i64 imm), [{
     // i64lo32 predicate - true if the 64-bit immediate has only rightmost 32
     // bits set.
-    return ((int64_t)(N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
+    return ((N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
 }
 
 def BrTarget   : Operand<OtherVT> {
