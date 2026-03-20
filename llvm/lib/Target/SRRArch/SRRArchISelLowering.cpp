@@ -40,6 +40,15 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::BR_CC, MVT::i64, Expand);
 
+  setCondCodeAction(ISD::SETLE, MVT::i64, Expand);
+  setCondCodeAction(ISD::SETGE, MVT::i64, Expand);
+  setCondCodeAction(ISD::SETULE, MVT::i64, Expand);
+  setCondCodeAction(ISD::SETUGE, MVT::i64, Expand);
+
+  for (MVT VT : MVT::integer_valuetypes()) {
+    setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
+  }
+
   // Function alignments
   setMinFunctionAlignment(Align(8));
   setPrefFunctionAlignment(Align(8));
