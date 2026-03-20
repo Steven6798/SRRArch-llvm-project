@@ -74,7 +74,7 @@ void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
     checkUInt(ctx, loc, val, 32, rel);
 
     // unconditional branch
-    if (loc[0] == 0x1e) {
+    if (loc[0] == 0x20) {
       write32le(loc + 1, val);
     } else {
       writeGVBLAddress(loc, val);

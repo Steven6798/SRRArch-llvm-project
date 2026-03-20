@@ -81,23 +81,25 @@ defvar CMPEQ_OPC  = 0x0c;
 defvar CMPNE_OPC  = 0x0d;
 defvar CMPLT_OPC  = 0x0e;
 defvar CMPGT_OPC  = 0x0f;
-defvar STOREB_OPC = 0x10;
-defvar STOREH_OPC = 0x11;
-defvar STOREW_OPC = 0x12;
-defvar STORE_OPC  = 0x13;
-defvar LOADBZ_OPC = 0x14;
-defvar LOADBS_OPC = 0x15;
-defvar LOADHZ_OPC = 0x16;
-defvar LOADHS_OPC = 0x17;
-defvar LOADWZ_OPC = 0x18;
-defvar LOADWS_OPC = 0x19;
-defvar LOAD_OPC   = 0x1a;
-defvar RETURN_OPC = 0x1b;
-defvar CALL_OPC   = 0x1c;
-defvar BRCOND_OPC = 0x1d;
-defvar BR_OPC     = 0x1e; // Keep this opcode in sync with the linker
-defvar GENINT_OPC = 0x1f;
-defvar MOV_OPC    = 0x20;
+defvar CMPULT_OPC = 0x10;
+defvar CMPUGT_OPC = 0x11;
+defvar STOREB_OPC = 0x12;
+defvar STOREH_OPC = 0x13;
+defvar STOREW_OPC = 0x14;
+defvar STORE_OPC  = 0x15;
+defvar LOADBZ_OPC = 0x16;
+defvar LOADBS_OPC = 0x17;
+defvar LOADHZ_OPC = 0x18;
+defvar LOADHS_OPC = 0x19;
+defvar LOADWZ_OPC = 0x1a;
+defvar LOADWS_OPC = 0x1b;
+defvar LOAD_OPC   = 0x1c;
+defvar RETURN_OPC = 0x1d;
+defvar CALL_OPC   = 0x1e;
+defvar BRCOND_OPC = 0x1f;
+defvar BR_OPC     = 0x20; // Keep this opcode in sync with the linker
+defvar GENINT_OPC = 0x21;
+defvar MOV_OPC    = 0x22;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -163,21 +165,18 @@ def SRL : InstrArith<SRL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
 // Comparison
 // -------------------------------------------------------------------------- //
 
-def CMPEQ : InstrArith<CMPEQ_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPEQ $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (seteq (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+multiclass CMPBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
+  def "" : InstrArith<Opc, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
+            !strconcat(AsmStr, " $Rd, $Rs1, $Rs2"),
+            [(set GPR:$Rd, (OpNode GPR:$Rs1, GPR:$Rs2))]>;
+}
 
-def CMPNE : InstrArith<CMPNE_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPNE $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (setne (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
-
-def CMPLT : InstrArith<CMPLT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPLT $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (setlt (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
-
-def CMPGT : InstrArith<CMPGT_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-            "CMPGT $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (setgt (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+defm CMPEQ  : CMPBase<CMPEQ_OPC, "CMPEQ", seteq>;
+defm CMPNE  : CMPBase<CMPNE_OPC, "CMPNE", setne>;
+defm CMPLT  : CMPBase<CMPLT_OPC, "CMPLT", setlt>;
+defm CMPGT  : CMPBase<CMPGT_OPC, "CMPGT", setgt>;
+defm CMPULT : CMPBase<CMPULT_OPC, "CMPULT", setult>;
+defm CMPUGT : CMPBase<CMPUGT_OPC, "CMPUGT", setugt>;
 
 // -------------------------------------------------------------------------- //
 // Memory Access
