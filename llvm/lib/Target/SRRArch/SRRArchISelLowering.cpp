@@ -45,6 +45,12 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
   setCondCodeAction(ISD::SETULE, MVT::i64, Expand);
   setCondCodeAction(ISD::SETUGE, MVT::i64, Expand);
 
+  setOperationAction(ISD::SREM, MVT::i64, Expand);
+  setOperationAction(ISD::UREM, MVT::i64, Expand);
+
+  setOperationAction(ISD::SDIVREM, MVT::i64, Expand);
+  setOperationAction(ISD::UDIVREM, MVT::i64, Expand);
+
   for (MVT VT : MVT::integer_valuetypes()) {
     setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
   }
