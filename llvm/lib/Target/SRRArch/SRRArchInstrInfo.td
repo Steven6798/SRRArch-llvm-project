@@ -35,6 +35,9 @@ def SRRArchGENINT       : SDNode<"SRRArchISD::GENINT", SDT_SRRArchGENINT,
 def SRRArchCALL         : SDNode<"SRRArchISD::CALL", SDT_SRRArchCALL,
                                  [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
                                   SDNPVariadic]>;
+def SRRArchCALLREG      : SDNode<"SRRArchISD::CALLREG", SDT_SRRArchCALL,
+                                 [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                                  SDNPVariadic]>;
 def SRRArchCallSeqStart : SDNode<"ISD::CALLSEQ_START", SDT_SRRArchCallSeqStart,
                                  [SDNPHasChain, SDNPOutGlue]>;
 def SRRArchCallSeqEnd   : SDNode<"ISD::CALLSEQ_END", SDT_SRRArchCallSeqEnd,
@@ -69,49 +72,50 @@ def BrTarget   : Operand<OtherVT> {
 // Opcodes
 // -------------------------------------------------------------------------- //
 
-defvar NOP_OPC    = 0x00;
-defvar ADD_OPC    = 0x01;
-defvar SUB_OPC    = 0x02;
-defvar MUL_OPC    = 0x03;
-defvar SDIV_OPC   = 0x04;
-defvar UDIV_OPC   = 0x05;
-defvar AND_OPC    = 0x06;
-defvar OR_OPC     = 0x07;
-defvar XOR_OPC    = 0x08;
-defvar SHL_OPC    = 0x09;
-defvar SRA_OPC    = 0x0a;
-defvar SRL_OPC    = 0x0b;
-defvar CMPEQ_OPC  = 0x0c;
-defvar CMPNE_OPC  = 0x0d;
-defvar CMPLT_OPC  = 0x0e;
-defvar CMPGT_OPC  = 0x0f;
-defvar CMPULT_OPC = 0x10;
-defvar CMPUGT_OPC = 0x11;
-defvar ADDI_OPC   = 0x12;
-defvar SUBI_OPC   = 0x13;
-defvar ANDI_OPC   = 0x14;
-defvar ORI_OPC    = 0x15;
-defvar XORI_OPC   = 0x16;
-defvar SHLI_OPC   = 0x17;
-defvar SRAI_OPC   = 0x18;
-defvar SRLI_OPC   = 0x19;
-defvar STOREB_OPC = 0x1a;
-defvar STOREH_OPC = 0x1b;
-defvar STOREW_OPC = 0x1c;
-defvar STORE_OPC  = 0x1d;
-defvar LOADBZ_OPC = 0x1e;
-defvar LOADBS_OPC = 0x1f;
-defvar LOADHZ_OPC = 0x20;
-defvar LOADHS_OPC = 0x21;
-defvar LOADWZ_OPC = 0x22;
-defvar LOADWS_OPC = 0x23;
-defvar LOAD_OPC   = 0x24;
-defvar RETURN_OPC = 0x25;
-defvar CALL_OPC   = 0x26;
-defvar BRCOND_OPC = 0x27;
-defvar BR_OPC     = 0x28; // Keep this opcode in sync with the linker
-defvar GENINT_OPC = 0x29;
-defvar MOV_OPC    = 0x2a;
+defvar NOP_OPC     = 0x00;
+defvar ADD_OPC     = 0x01;
+defvar SUB_OPC     = 0x02;
+defvar MUL_OPC     = 0x03;
+defvar SDIV_OPC    = 0x04;
+defvar UDIV_OPC    = 0x05;
+defvar AND_OPC     = 0x06;
+defvar OR_OPC      = 0x07;
+defvar XOR_OPC     = 0x08;
+defvar SHL_OPC     = 0x09;
+defvar SRA_OPC     = 0x0a;
+defvar SRL_OPC     = 0x0b;
+defvar CMPEQ_OPC   = 0x0c;
+defvar CMPNE_OPC   = 0x0d;
+defvar CMPLT_OPC   = 0x0e;
+defvar CMPGT_OPC   = 0x0f;
+defvar CMPULT_OPC  = 0x10;
+defvar CMPUGT_OPC  = 0x11;
+defvar ADDI_OPC    = 0x12;
+defvar SUBI_OPC    = 0x13;
+defvar ANDI_OPC    = 0x14;
+defvar ORI_OPC     = 0x15;
+defvar XORI_OPC    = 0x16;
+defvar SHLI_OPC    = 0x17;
+defvar SRAI_OPC    = 0x18;
+defvar SRLI_OPC    = 0x19;
+defvar STOREB_OPC  = 0x1a;
+defvar STOREH_OPC  = 0x1b;
+defvar STOREW_OPC  = 0x1c;
+defvar STORE_OPC   = 0x1d;
+defvar LOADBZ_OPC  = 0x1e;
+defvar LOADBS_OPC  = 0x1f;
+defvar LOADHZ_OPC  = 0x20;
+defvar LOADHS_OPC  = 0x21;
+defvar LOADWZ_OPC  = 0x22;
+defvar LOADWS_OPC  = 0x23;
+defvar LOAD_OPC    = 0x24;
+defvar RETURN_OPC  = 0x25;
+defvar CALL_OPC    = 0x26;
+defvar CALLREG_OPC = 0x27;
+defvar BRCOND_OPC  = 0x28;
+defvar BR_OPC      = 0x29; // Keep this opcode in sync with the linker
+defvar GENINT_OPC  = 0x2a;
+defvar MOV_OPC     = 0x2b;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -203,7 +207,6 @@ multiclass LoadBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
   def "" : InstrMemory<Opc, (outs GPR:$Rd), (ins GPR:$Rs1),
             !strconcat(AsmStr, " $Rd, $Rs1"),
             [(set GPR:$Rd, (OpNode GPR:$Rs1))]>;
-
 }
 
 defm LOADBZ : LoadBase<LOADBZ_OPC, "LOADBZ", zextloadi8>;
@@ -219,22 +222,15 @@ def : Pat<(extloadi8 GPR:$Rs1), (LOADBZ GPR:$Rs1)>;
 def : Pat<(extloadi16 GPR:$Rs1), (LOADHZ GPR:$Rs1)>;
 def : Pat<(extloadi32 GPR:$Rs1), (LOADWZ GPR:$Rs1)>;
 
-// frame index matching
-// def : Pat<(load tframeindex:$Rs1), (LOAD GPR:$Rs1)>;
-
 multiclass StoreBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
   def "" : InstrMemory<Opc, (outs), (ins GPR:$Rd, GPR:$Rs1),
             !strconcat(AsmStr, " $Rd, $Rs1"), [(OpNode GPR:$Rs1, GPR:$Rd)]>;
-
 }
 
 defm STOREB : StoreBase<STOREB_OPC, "STOREB", truncstorei8>;
 defm STOREH : StoreBase<STOREH_OPC, "STOREH", truncstorei16>;
 defm STOREW : StoreBase<STOREW_OPC, "STOREW", truncstorei32>;
 defm STORE  : StoreBase<STORE_OPC, "STORE", store>;
-
-// frame index matching
-// def : Pat<(store GPR:$Rs1, tframeindex:$Rd), (STORE GPR:$Rd, GPR:$Rs1)>;
 
 // -------------------------------------------------------------------------- //
 // Branch
@@ -248,13 +244,22 @@ let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R3], Uses = [R4] in {
 }
 
 let isCall = 1, Uses = [R1], Defs = [R4] in {
-  def CALL : InstSRRArch<(outs), (ins GPR:$Rs1), "CALL $Rs1",
-                         [(SRRArchCALL GPR:$Rs1)]> {
+  def CALL : InstSRRArch<(outs), (ins i64lo32z:$Addr), "CALL $Addr",
+                         [(SRRArchCALL tglobaladdr:$Addr)]> {
+    bits<32> Addr;
+
+    let Inst{7 - 0}   = CALL_OPC; // Opcode
+    let Inst{39 - 8}  = Addr;     // Address
+    let Inst{63 - 40} = 0;        // Reserved
+  }
+
+  def CALLREG : InstSRRArch<(outs), (ins GPR:$Rs1), "CALLREG $Rs1",
+                         [(SRRArchCALLREG GPR:$Rs1)]> {
     bits<5> Rs1;
 
-    let Inst{7 - 0}   = CALL_OPC;   // Opcode
-    let Inst{12 - 8}  = Rs1;        // Source register
-    let Inst{63 - 13} = 0;          // Reserved
+    let Inst{7 - 0}   = CALLREG_OPC; // Opcode
+    let Inst{12 - 8}  = Rs1;         // Source register
+    let Inst{63 - 13} = 0;           // Reserved
   }
 }
 

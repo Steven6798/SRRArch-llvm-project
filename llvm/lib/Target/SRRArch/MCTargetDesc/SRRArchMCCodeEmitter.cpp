@@ -86,8 +86,11 @@ unsigned SRRArchMCCodeEmitter::getMachineOpValue(
     Expr = BinaryExpr->getLHS();
   }
 
-  if (Inst.getOpcode() == SRRArch::GENINT) {
+  unsigned Opc = Inst.getOpcode();
+  if (Opc == SRRArch::GENINT) {
     Fixups.push_back(MCFixup::create(0, Expr, SRRArch::FIXUP_SRRARCH_GV));
+  } else if (Opc == SRRArch::CALL) {
+    Fixups.push_back(MCFixup::create(0, Expr, SRRArch::FIXUP_SRRARCH_CALL));
   } else {
     llvm_unreachable("Invalid expresion");
   }

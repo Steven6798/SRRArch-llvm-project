@@ -51,6 +51,9 @@ unsigned SRRArchELFObjectWriter::getRelocType(const MCFixup &Fixup,
   case FK_Data_8:
     Type = ELF::R_SRRARCH_64;
     break;
+  case SRRArch::FIXUP_SRRARCH_CALL:
+    Type = ELF::R_SRRARCH_CALL;
+    break;
   case SRRArch::FIXUP_SRRARCH_NONE:
     Type = ELF::R_SRRARCH_NONE;
     break;

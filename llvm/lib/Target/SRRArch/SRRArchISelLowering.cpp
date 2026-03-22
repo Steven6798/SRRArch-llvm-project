@@ -203,6 +203,7 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // bool &IsTailCall = CLI.IsTailCall;
   CallingConv::ID CallConv = CLI.CallConv;
   bool IsVarArg = CLI.IsVarArg;
+  GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee);
 
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
@@ -297,6 +298,14 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   for (const auto &[Reg, N] : RegsToPass) {
     Chain = DAG.getCopyToReg(Chain, DL, Reg, N, InGlue);
     InGlue = Chain.getValue(1);
+  }
+
+  if (G) {
+    Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL,
+                                        getPointerTy(DAG.getDataLayout()), 0);
+  } else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
+    Callee = DAG.getTargetExternalSymbol(E->getSymbol(),
+                                         getPointerTy(DAG.getDataLayout()));
   }
 
   // Returns a chain & a flag for retval copy to use.

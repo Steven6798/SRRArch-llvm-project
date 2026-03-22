@@ -95,16 +95,19 @@ SRRArchAsmBackend::createObjectTargetWriter() const {
 }
 
 MCFixupKindInfo SRRArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+  // clang-format off
   static const MCFixupKindInfo Infos[SRRArch::NumTargetFixupKinds] = {
       // This table *must* be in same the order of fixup_* kinds in
       // SRRArchFixupKinds.h.
       //
-      // name          offset bits flags
-      {"FIXUP_SRRARCH_NONE", 0, 32, 0},
-      {"FIXUP_SRRARCH_32", 0, 32, 0},
-      {"FIXUP_SRRARCH_64", 0, 64, 0},
-      {"FIXUP_SRRARCH_GV", 13, 32, 0},
-      {"FIXUP_SRRARCH_BRANCH", 13, 32, 0}};
+      // name                 offset bits flags
+      {"FIXUP_SRRARCH_NONE",    0,    32,  0},
+      {"FIXUP_SRRARCH_32",      0,    32,  0},
+      {"FIXUP_SRRARCH_64",      0,    64,  0},
+      {"FIXUP_SRRARCH_GV",      13,   32,  0},
+      {"FIXUP_SRRARCH_BRANCH",  13,   32,  0},
+      {"FIXUP_SRRARCH_CALL",    8,    32,  0}};
+  // clang-format on
 
   if (Kind < FirstTargetFixupKind)
     return MCAsmBackend::getFixupKindInfo(Kind);
