@@ -53,6 +53,10 @@ public:
     return true;
   }
 
+  bool requiresFrameIndexScavenging(const MachineFunction &MF) const override {
+    return true;
+  }
+
   // Debug information queries.
   Register getRetAddrRegister() const { return RetAddr; }
   Register getFrameRegister(const MachineFunction &MF) const override;

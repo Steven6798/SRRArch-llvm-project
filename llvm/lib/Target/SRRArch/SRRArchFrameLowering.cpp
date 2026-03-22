@@ -81,13 +81,9 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
 
   if (hasFP(MF)) {
     // Allocate space for both RA
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
-        .addImm(8)
-        .setMIFlag(MachineInstr::FrameSetup);
-
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUBI), SP)
         .addReg(SP)
-        .addReg(SRRArch::R9)
+        .addImm(8)
         .setMIFlag(MachineInstr::FrameSetup);
 
     // Save RA at [SP - 8]
@@ -97,9 +93,9 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
         .setMIFlag(MachineInstr::FrameSetup);
 
     // Allocate space for both FP
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUBI), SP)
         .addReg(SP)
-        .addReg(SRRArch::R9)
+        .addImm(8)
         .setMIFlag(MachineInstr::FrameSetup);
 
     // Save FP at [SP - 16]
@@ -109,28 +105,31 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
         .setMIFlag(MachineInstr::FrameSetup);
 
     // Set new FP to SP + 16 to point ABOVE the saved RA and FP registers
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::ADDI), FP)
+        .addReg(SP)
         .addImm(16)
         .setMIFlag(MachineInstr::FrameSetup);
 
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::ADD), FP)
-        .addReg(SP)
-        .addReg(SRRArch::R9)
-        .setMIFlag(MachineInstr::FrameSetup);
-
-    StackSize -= 16; // We arelady allocated 16 bytes here.
+    StackSize -= 16; // We already allocated 16 bytes here.
   }
 
   // Allocate remaining stack space for locals and callee-saved
   if (StackSize > 0) {
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
-        .addImm(StackSize)
-        .setMIFlag(MachineInstr::FrameSetup);
+    if (isUInt<12>(StackSize)) {
+      BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUBI), SP)
+          .addReg(SP)
+          .addImm(StackSize)
+          .setMIFlag(MachineInstr::FrameSetup);
+    } else {
+      BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
+          .addImm(StackSize)
+          .setMIFlag(MachineInstr::FrameSetup);
 
-    BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
-        .addReg(SP)
-        .addReg(SRRArch::R9)
-        .setMIFlag(MachineInstr::FrameSetup);
+      BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), SP)
+          .addReg(SP)
+          .addReg(SRRArch::R9)
+          .setMIFlag(MachineInstr::FrameSetup);
+    }
   }
 
   LLVM_DEBUG(dbgs() << "After Prologue:" << MBB << "\n");
@@ -155,13 +154,9 @@ void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
       .setMIFlag(MachineInstr::FrameDestroy);
 
   // Restore the return address (R4) from the stack.
-  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::GENINT), SRRArch::R9)
-      .addImm(8)
-      .setMIFlag(MachineInstr::FrameDestroy);
-
-  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), FP)
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUBI), FP)
       .addReg(FP)
-      .addReg(SRRArch::R9)
+      .addImm(8)
       .setMIFlag(MachineInstr::FrameDestroy);
 
   BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), RA)
@@ -169,9 +164,9 @@ void SRRArchFrameLowering::emitEpilogue(MachineFunction &MF,
       .setMIFlag(MachineInstr::FrameDestroy);
 
   // Restore the frame pointer from the stack.
-  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUB), FP)
+  BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUBI), FP)
       .addReg(FP)
-      .addReg(SRRArch::R9)
+      .addImm(8)
       .setMIFlag(MachineInstr::FrameDestroy);
 
   BuildMI(MBB, MBBI, DL, SII.get(SRRArch::LOAD), FP)

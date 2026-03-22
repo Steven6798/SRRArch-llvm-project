@@ -17,7 +17,6 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/Support/Debug.h"
 
 #define GET_REGINFO_TARGET_DESC
@@ -65,14 +64,14 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineFunction &MF = *MI.getParent()->getParent();
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+  MachineRegisterInfo &RI = MBB.getParent()->getRegInfo();
   bool HasFP = TFI->hasFP(MF);
   DebugLoc DL = MI.getDebugLoc();
 
   LLVM_DEBUG(dbgs() << "Eliminating frame index of: " << MI);
 
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
-
-  int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
+  int64_t Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
 
   // Addressable stack objects are addressed using neg. offsets from fp
   // or pos. offsets from sp/basepointer
@@ -80,34 +79,29 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     Offset += MF.getFrameInfo().getStackSize();
 
   Register FrameReg = getFrameRegister(MF);
-  if (FrameIndex >= 0 && hasStackRealignment(MF)) {
+  if (FrameIndex >= 0 && hasStackRealignment(MF))
     FrameReg = getStackRegister();
-  }
 
-  // Replace frame index with a frame pointer reference.
-  assert(RS && "Register scavenging must be on");
-
-  RS->enterBasicBlockEnd(MBB);
-  RS->backward(std::next(II));
-
-  Register ScratchReg = RS->scavengeRegisterBackwards(
-      SRRArch::GPRRegClass, II, /*RestoreAfter=*/false, /*SPAdj=*/0,
-      /*AllowSpill=*/true);
-  assert(ScratchReg != 0 && "scratch reg was 0");
-  RS->setRegUsed(ScratchReg);
-
+  Register ScratchReg = RI.createVirtualRegister(&SRRArch::GPRRegClass);
   bool HasNegOffset = false;
   if (Offset < 0) {
     HasNegOffset = true;
     Offset = -Offset;
   }
 
-  BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
+  if (isUInt<12>(Offset)) {
+    unsigned Opc = HasNegOffset ? SRRArch::SUBI : SRRArch::ADDI;
+    BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
+        .addReg(FrameReg)
+        .addImm(Offset);
+  } else {
+    BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
 
-  unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
-  BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
-      .addReg(FrameReg)
-      .addReg(ScratchReg);
+    unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
+    BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
+        .addReg(FrameReg)
+        .addReg(ScratchReg);
+  }
 
   MI.getOperand(FIOperandNum)
       .ChangeToRegister(ScratchReg, /*isDef=*/false, /*isImp=*/false,

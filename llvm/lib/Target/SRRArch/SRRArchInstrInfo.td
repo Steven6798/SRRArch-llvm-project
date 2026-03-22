@@ -56,6 +56,10 @@ def i64lo32z : Operand<i64>, PatLeaf<(i64 imm), [{
     return ((N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
 }
 
+def imm12 : Operand<i64>, PatLeaf<(imm), [{
+    return isInt<12>(N->getSExtValue()); }]> {
+}
+
 def BrTarget   : Operand<OtherVT> {
   let EncoderMethod = "getBranchTargetOpValue";
   let DecoderMethod = "decodeBranch";
@@ -83,90 +87,103 @@ defvar CMPLT_OPC  = 0x0e;
 defvar CMPGT_OPC  = 0x0f;
 defvar CMPULT_OPC = 0x10;
 defvar CMPUGT_OPC = 0x11;
-defvar STOREB_OPC = 0x12;
-defvar STOREH_OPC = 0x13;
-defvar STOREW_OPC = 0x14;
-defvar STORE_OPC  = 0x15;
-defvar LOADBZ_OPC = 0x16;
-defvar LOADBS_OPC = 0x17;
-defvar LOADHZ_OPC = 0x18;
-defvar LOADHS_OPC = 0x19;
-defvar LOADWZ_OPC = 0x1a;
-defvar LOADWS_OPC = 0x1b;
-defvar LOAD_OPC   = 0x1c;
-defvar RETURN_OPC = 0x1d;
-defvar CALL_OPC   = 0x1e;
-defvar BRCOND_OPC = 0x1f;
-defvar BR_OPC     = 0x20; // Keep this opcode in sync with the linker
-defvar GENINT_OPC = 0x21;
-defvar MOV_OPC    = 0x22;
+defvar ADDI_OPC   = 0x12;
+defvar SUBI_OPC   = 0x13;
+defvar ANDI_OPC   = 0x14;
+defvar ORI_OPC    = 0x15;
+defvar XORI_OPC   = 0x16;
+defvar SHLI_OPC   = 0x17;
+defvar SRAI_OPC   = 0x18;
+defvar SRLI_OPC   = 0x19;
+defvar STOREB_OPC = 0x1a;
+defvar STOREH_OPC = 0x1b;
+defvar STOREW_OPC = 0x1c;
+defvar STORE_OPC  = 0x1d;
+defvar LOADBZ_OPC = 0x1e;
+defvar LOADBS_OPC = 0x1f;
+defvar LOADHZ_OPC = 0x20;
+defvar LOADHS_OPC = 0x21;
+defvar LOADWZ_OPC = 0x22;
+defvar LOADWS_OPC = 0x23;
+defvar LOAD_OPC   = 0x24;
+defvar RETURN_OPC = 0x25;
+defvar CALL_OPC   = 0x26;
+defvar BRCOND_OPC = 0x27;
+defvar BR_OPC     = 0x28; // Keep this opcode in sync with the linker
+defvar GENINT_OPC = 0x29;
+defvar MOV_OPC    = 0x2a;
 
 // -------------------------------------------------------------------------- //
 // Instructions
 // -------------------------------------------------------------------------- //
 
 // -------------------------------------------------------------------------- //
-// Arithmetic
+// Arithmetic register-register
 // -------------------------------------------------------------------------- //
 
-def ADD : InstrArith<ADD_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "ADD $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (add (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+multiclass ALURRBase<bits<8> Opc, string AsmStr, SDNode OpNode> {
+  def "" : InstrALURR<Opc, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
+            !strconcat(AsmStr, " $Rd, $Rs1, $Rs2"),
+            [(set GPR:$Rd, (OpNode GPR:$Rs1, GPR:$Rs2))]>;
+}
 
-def SUB : InstrArith<SUB_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SUB $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (sub (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
-
-def MUL : InstrArith<MUL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "MUL $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (mul (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
-
-def SDIV : InstrArith<SDIV_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-           "SDIV $Rd, $Rs1, $Rs2",
-           [(set (i64 GPR:$Rd), (sdiv (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
-
-def UDIV : InstrArith<UDIV_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-           "UDIV $Rd, $Rs1, $Rs2",
-           [(set (i64 GPR:$Rd), (udiv (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+defm ADD  : ALURRBase<ADD_OPC, "ADD", add>;
+defm SUB  : ALURRBase<SUB_OPC, "SUB", sub>;
+defm MUL  : ALURRBase<MUL_OPC, "MUL", mul>;
+defm SDIV : ALURRBase<SDIV_OPC, "SDIV", sdiv>;
+defm UDIV : ALURRBase<UDIV_OPC, "UDIV", udiv>;
 
 // -------------------------------------------------------------------------- //
-// Bitwise
+// Arithmetic register-immediate
 // -------------------------------------------------------------------------- //
 
-def AND : InstrArith<AND_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "AND $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (and (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+multiclass ALURIBase<bits<8> Opc, string AsmStr, SDNode OpNode> {
+  def "" : InstrALURI<Opc, (outs GPR:$Rd), (ins GPR:$Rs1, imm12:$Imm),
+            !strconcat(AsmStr, " $Rd, $Rs1, $Imm"),
+            [(set GPR:$Rd, (OpNode GPR:$Rs1, imm12:$Imm))]>;
+}
 
-def OR : InstrArith<OR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-         "OR $Rd, $Rs1, $Rs2",
-         [(set (i64 GPR:$Rd), (or (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
-
-def XOR : InstrArith<XOR_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "XOR $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (xor (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+defm ADDI : ALURIBase<ADDI_OPC, "ADDI", add>;
+defm SUBI : ALURIBase<SUBI_OPC, "SUBI", sub>;
 
 // -------------------------------------------------------------------------- //
-// Shift
+// Bitwise register-register
 // -------------------------------------------------------------------------- //
 
-def SHL : InstrArith<SHL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SHL $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (shl (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+defm AND : ALURRBase<AND_OPC, "AND", and>;
+defm OR  : ALURRBase<OR_OPC, "OR", or>;
+defm XOR : ALURRBase<XOR_OPC, "XOR", xor>;
 
-def SRA : InstrArith<SRA_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SRA $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (sra (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+// -------------------------------------------------------------------------- //
+// Bitwise register-immediate
+// -------------------------------------------------------------------------- //
 
-def SRL : InstrArith<SRL_OPC, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
-          "SRL $Rd, $Rs1, $Rs2",
-          [(set (i64 GPR:$Rd), (srl (i64 GPR:$Rs1), (i64 GPR:$Rs2)))]>;
+defm ANDI : ALURIBase<ANDI_OPC, "ANDI", and>;
+defm ORI  : ALURIBase<ORI_OPC, "ORI", or>;
+defm XORI : ALURIBase<XORI_OPC, "XORI", xor>;
+
+// -------------------------------------------------------------------------- //
+// Shift register-register
+// -------------------------------------------------------------------------- //
+
+defm SHL : ALURRBase<SHL_OPC, "SHL", shl>;
+defm SRA : ALURRBase<SRA_OPC, "SRA", sra>;
+defm SRL : ALURRBase<SRL_OPC, "SRL", srl>;
+
+// -------------------------------------------------------------------------- //
+// Shift register-immediate
+// -------------------------------------------------------------------------- //
+
+defm SHLI : ALURIBase<SHLI_OPC, "SHLI", shl>;
+defm SRAI : ALURIBase<SRAI_OPC, "SRAI", sra>;
+defm SRLI : ALURIBase<SRLI_OPC, "SRLI", srl>;
 
 // -------------------------------------------------------------------------- //
 // Comparison
 // -------------------------------------------------------------------------- //
 
 multiclass CMPBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
-  def "" : InstrArith<Opc, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
+  def "" : InstrALURR<Opc, (outs GPR:$Rd), (ins GPR:$Rs1, GPR:$Rs2),
             !strconcat(AsmStr, " $Rd, $Rs1, $Rs2"),
             [(set GPR:$Rd, (OpNode GPR:$Rs1, GPR:$Rs2))]>;
 }
