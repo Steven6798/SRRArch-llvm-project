@@ -48,7 +48,8 @@ void SRRArchInstrInfo::storeRegToStackSlot(
 
   MachineInstr *Store = BuildMI(MBB, Position, DL, get(SRRArch::STORE))
                             .addFrameIndex(FrameIndex)
-                            .addReg(SourceRegister, getKillRegState(IsKill));
+                            .addReg(SourceRegister, getKillRegState(IsKill))
+                            .addImm(0);
 
   LLVM_DEBUG(dbgs() << "Inserting store to stack slot:" << *Store << "\n");
 }
@@ -67,7 +68,8 @@ void SRRArchInstrInfo::loadRegFromStackSlot(
 
   MachineInstr *Load =
       BuildMI(MBB, Position, DL, get(SRRArch::LOAD), DestinationRegister)
-          .addFrameIndex(FrameIndex);
+          .addFrameIndex(FrameIndex)
+          .addImm(0);
 
   LLVM_DEBUG(dbgs() << "Inserting load from stack slot:" << *Load << "\n");
 }
