@@ -47,8 +47,8 @@ void SRRArchInstrInfo::storeRegToStackSlot(
     llvm_unreachable("Can't store this register to stack slot");
 
   MachineInstr *Store = BuildMI(MBB, Position, DL, get(SRRArch::STORE))
-                            .addFrameIndex(FrameIndex)
                             .addReg(SourceRegister, getKillRegState(IsKill))
+                            .addFrameIndex(FrameIndex)
                             .addImm(0);
 
   LLVM_DEBUG(dbgs() << "Inserting store to stack slot:" << *Store << "\n");
