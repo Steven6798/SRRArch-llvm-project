@@ -53,6 +53,9 @@ private:
   // Support functions for the opcodes of Instruction Selection
   // not handled by the auto-generated tablgen
   void selectConstant(SDNode *N);
+
+  // Complex Pattern for address selection.
+  bool selectAddrRi(SDValue Addr, SDValue &Src, SDValue &Offset);
 };
 
 class SRRArchDAGToDAGISelLegacy : public SelectionDAGISelLegacy {
@@ -133,6 +136,26 @@ void SRRArchDAGToDAGISel::selectConstant(SDNode *Node) {
 
     ReplaceNode(Node, GENINT);
   }
+}
+
+bool SRRArchDAGToDAGISel::selectAddrRi(SDValue Addr, SDValue &Src,
+                                       SDValue &Offset) {
+  SDLoc DL(Addr);
+
+  if (ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Addr)) {
+    llvm_unreachable("Found ConstantSDNode");
+  }
+
+  // if Address is FI, get the TargetFrameIndex.
+  if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
+    Src = Addr;
+    Offset = CurDAG->getTargetConstant(0, DL, MVT::i64);
+    return true;
+  }
+
+  Src = Addr;
+  Offset = CurDAG->getTargetConstant(0, DL, MVT::i64);
+  return true;
 }
 
 // createSRRArchISelDag - This pass converts a legalized DAG into a

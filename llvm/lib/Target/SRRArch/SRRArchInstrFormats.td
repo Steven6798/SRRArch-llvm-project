@@ -48,14 +48,28 @@ class InstrALURI<bits<8> opc,dag outs, dag ins, string asmstr,
   let Inst{63 - 30} = 0;     // Reserved
 }
 
-class InstrMemory<bits<8> opc,dag outs, dag ins, string asmstr,
+class InstrLD<bits<8> opc,dag outs, dag ins, string asmstr,
                   list<dag> pattern>
     : InstSRRArch<outs, ins, asmstr, pattern> {
   bits<5> Rd;
-  bits<5> Rs1;
+  bits<17> Src;
 
-  let Inst{7 - 0}   = opc;   // Opcode
-  let Inst{12 - 8}  = Rd;    // Destination Register
-  let Inst{17 - 13} = Rs1;   // Source Register 1
-  let Inst{63 - 18} = 0;     // Reserved
+  let Inst{7 - 0}   = opc;       // Opcode
+  let Inst{12 - 8}  = Rd;        // Destination Register
+  let Inst{17 - 13} = Src{4-0};  // Source Register 1
+  let Inst{29 - 18} = Src{16-5}; // Immediate
+  let Inst{63 - 30} = 0;         // Reserved
+}
+
+class InstrST<bits<8> opc,dag outs, dag ins, string asmstr,
+                  list<dag> pattern>
+    : InstSRRArch<outs, ins, asmstr, pattern> {
+  bits<5> Rs1;
+  bits<17> Src;
+
+  let Inst{7 - 0}   = opc;       // Opcode
+  let Inst{12 - 8}  = Rs1;       // Source Register 1
+  let Inst{17 - 13} = Src{4-0};  // Destination Register
+  let Inst{29 - 18} = Src{16-5}; // Immediate
+  let Inst{63 - 30} = 0;         // Reserved
 }

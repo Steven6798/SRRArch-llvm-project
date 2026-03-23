@@ -14,6 +14,7 @@
 #include "MCTargetDesc/SRRArchMCTargetDesc.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 
@@ -31,6 +32,7 @@ void SRRArchInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                    StringRef Annotation,
                                    const MCSubtargetInfo & /*STI*/,
                                    raw_ostream &OS) {
+  LLVM_DEBUG(dbgs() << "Printing: " << *MI << "\n");
   printInstruction(MI, Address, OS);
 
   // Next always print the annotation.
@@ -48,4 +50,11 @@ void SRRArchInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     assert(Op.isExpr() && "Expected an expression");
     MAI.printExpr(OS, *Op.getExpr());
   }
+}
+
+void SRRArchInstPrinter::printMemRiOperand(const MCInst *MI, int OpNo,
+                                           raw_ostream &OS) {
+  printOperand(MI, OpNo, OS);
+  OS << ", ";
+  printOperand(MI, OpNo + 1, OS);
 }

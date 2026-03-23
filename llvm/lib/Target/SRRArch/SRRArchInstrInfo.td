@@ -68,6 +68,15 @@ def BrTarget   : Operand<OtherVT> {
   let DecoderMethod = "decodeBranch";
 }
 
+def ADDRri : ComplexPattern<i64, 2, "selectAddrRi", [tframeindex], []>;
+
+def MEMri : Operand<i64> {
+  let DecoderMethod = "decodeRiMemoryValue";
+  let EncoderMethod = "getRiMemoryOpValue";
+  let MIOperandInfo = (ops GPR:$base, imm12:$offset);
+  let PrintMethod   = "printMemRiOperand";
+}
+
 // -------------------------------------------------------------------------- //
 // Opcodes
 // -------------------------------------------------------------------------- //
@@ -204,9 +213,9 @@ defm CMPUGT : CMPBase<CMPUGT_OPC, "CMPUGT", setugt>;
 // -------------------------------------------------------------------------- //
 
 multiclass LoadBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
-  def "" : InstrMemory<Opc, (outs GPR:$Rd), (ins GPR:$Rs1),
-            !strconcat(AsmStr, " $Rd, $Rs1"),
-            [(set GPR:$Rd, (OpNode GPR:$Rs1))]>;
+  def "" : InstrLD<Opc, (outs GPR:$Rd), (ins MEMri:$Src),
+                   !strconcat(AsmStr, " $Rd, $Src"),
+                   [(set GPR:$Rd, (OpNode ADDRri:$Src))]>;
 }
 
 defm LOADBZ : LoadBase<LOADBZ_OPC, "LOADBZ", zextloadi8>;
@@ -218,13 +227,14 @@ defm LOADWS : LoadBase<LOADWS_OPC, "LOADWS", sextloadi32>;
 defm LOAD   : LoadBase<LOAD_OPC, "LOAD", load>;
 
 // extload -> zextload
-def : Pat<(extloadi8 GPR:$Rs1), (LOADBZ GPR:$Rs1)>;
-def : Pat<(extloadi16 GPR:$Rs1), (LOADHZ GPR:$Rs1)>;
-def : Pat<(extloadi32 GPR:$Rs1), (LOADWZ GPR:$Rs1)>;
+def : Pat<(extloadi8 ADDRri:$Rs1), (LOADBZ MEMri:$Rs1)>;
+def : Pat<(extloadi16 ADDRri:$Rs1), (LOADHZ MEMri:$Rs1)>;
+def : Pat<(extloadi32 ADDRri:$Rs1), (LOADWZ MEMri:$Rs1)>;
 
 multiclass StoreBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
-  def "" : InstrMemory<Opc, (outs), (ins GPR:$Rd, GPR:$Rs1),
-            !strconcat(AsmStr, " $Rd, $Rs1"), [(OpNode GPR:$Rs1, GPR:$Rd)]>;
+  def "" : InstrST<Opc, (outs), (ins GPR:$Rs1, MEMri:$Src),
+                   !strconcat(AsmStr, " $Rs1, $Src"),
+                   [(OpNode GPR:$Rs1, ADDRri:$Src)]>;
 }
 
 defm STOREB : StoreBase<STOREB_OPC, "STOREB", truncstorei8>;

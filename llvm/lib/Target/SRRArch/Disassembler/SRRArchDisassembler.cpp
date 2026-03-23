@@ -70,6 +70,16 @@ static DecodeStatus decodeBranch(MCInst &MI, unsigned Insn, uint64_t Address,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeRiMemoryValue(MCInst &Inst, unsigned Insn,
+                                        uint64_t Address,
+                                        const MCDisassembler *Decoder) {
+  unsigned Reg = (Insn) & 0x1F;
+  Inst.addOperand(MCOperand::createReg(GPRDecoderTable[Reg]));
+  unsigned Offset = (Insn >> 5) & 0xFFF;
+  Inst.addOperand(MCOperand::createImm(SignExtend64<12>(Offset)));
+  return MCDisassembler::Success;
+}
+
 #include "SRRArchGenDisassemblerTables.inc"
 
 DecodeStatus

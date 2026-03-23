@@ -58,6 +58,10 @@ public:
                                   SmallVectorImpl<MCFixup> &Fixups,
                                   const MCSubtargetInfo &SubtargetInfo) const;
 
+  uint64_t getRiMemoryOpValue(const MCInst &Inst, unsigned OpNo,
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &SubtargetInfo) const;
+
   void encodeInstruction(const MCInst &Inst, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &SubtargetInfo) const override;
@@ -108,6 +112,22 @@ unsigned SRRArchMCCodeEmitter::getBranchTargetOpValue(
       MCFixup::create(0, MCOp.getExpr(), SRRArch::FIXUP_SRRARCH_BRANCH));
 
   return 0;
+}
+
+uint64_t SRRArchMCCodeEmitter::getRiMemoryOpValue(
+    const MCInst &Inst, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups,
+    const MCSubtargetInfo &SubtargetInfo) const {
+  const MCOperand Reg = Inst.getOperand(OpNo);
+  const MCOperand Offset = Inst.getOperand(OpNo + 1);
+
+  assert(Reg.isReg() && "First operand is not a register.");
+  assert(Offset.isImm() && "Second operand is not an immediate.");
+
+  uint64_t Encoding = 0;
+  Encoding |= (getMachineOpValue(Inst, Reg, Fixups, SubtargetInfo) & 0x1F);
+  Encoding |= (getMachineOpValue(Inst, Offset, Fixups, SubtargetInfo) & 0xFFF)
+              << 5;
+  return Encoding;
 }
 
 void SRRArchMCCodeEmitter::encodeInstruction(
