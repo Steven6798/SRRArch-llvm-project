@@ -1,0 +1,3 @@
+add_subdirectory(EmitMapFileEvenInCrash)
+add_subdirectory(PluginAPI)
+add_subdirectory(SymbolResolutionReport)

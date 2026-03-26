@@ -1,0 +1,15 @@
+#----------RelaxGPSegments.test----------------- Executable------------------#
+# BEGIN_COMMENT
+# Test that --no-relax-gp disables gp relaxation
+# END_COMMENT
+# START_TEST
+#RUN: %clang %clangopts -c %p/Inputs/1.s -o %t.o
+#RUN: %not %link %linkopts  %t.o -T %p/Inputs/script.t -o %t1.out --verbose  2>&1 | %filecheck %s -check-prefix=RELAXBYTESERR
+# END_TEST
+#RELAXBYTESERR: Verbose: RISCV_PC_GP : Deleting 4 bytes for symbol 'a' in section .text+0x8 file {{.*}}tmp.o
+#RELAXBYTESERR: Verbose: RISCV_PC_GP : Deleting 4 bytes for symbol 'a' in section .text+0xc file {{.*}}tmp.o
+#RELAXBYTESERR: Verbose: RISCV_PC_GP : Deleting 4 bytes for symbol 'a' in section .text+0x10 file {{.*}}tmp.o
+#RELAXBYTESERR: Verbose: RISCV_LUI_GP : Deleting 4 bytes for symbol 'b' in section .text+0x14 file {{.*}}tmp.o
+#RELAXBYTESERR: Error: {{.*}}.o:(.text+0x8):  relocation R_RISCV_GPREL_I out of range: 4352 is not in [-2048, 2047]; references 'a'
+#RELAXBYTESERR: Error: {{.*}}.o:(.text+0xc):  relocation R_RISCV_GPREL_I out of range: 4352 is not in [-2048, 2047]; references 'a'
+#RELAXBYTESERR: Error: {{.*}}.o:(.text+0x10): relocation R_RISCV_GPREL_I out of range: 4352 is not in [-2048, 2047]; references 'a'

@@ -1,0 +1,10 @@
+#---PrintVersionInfo.test--------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# Check linker version.
+#END_COMMENT
+
+RUN: %link --version 2>&1 | %filecheck %s
+RUN: %link --about 2>&1 | %filecheck %s -check-prefix=ABOUT
+
+#CHECK: eld {{.*}} (GNU Compatible linker)
+#ABOUT: Linker Plugin Interface Version {{[[:xdigit:]]+}}.{{[[:xdigit:]]+}}

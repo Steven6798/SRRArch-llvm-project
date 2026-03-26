@@ -1,0 +1,1317 @@
+//===- AArch64Relocator.cpp------------------------------------------------===//
+// Part of the eld Project, under the BSD License
+// See https://github.com/qualcomm/eld/LICENSE.txt for license information.
+// SPDX-License-Identifier: BSD-3-Clause
+//===----------------------------------------------------------------------===//
+
+
+#include "AArch64Relocator.h"
+#include "AArch64InsnHelpers.h"
+#include "AArch64PLT.h"
+#include "AArch64RelocationFunctions.h"
+#include "AArch64RelocationHelpers.h"
+#include "eld/Config/LinkerConfig.h"
+#include "eld/Input/ELFObjectFile.h"
+#include "eld/Object/ObjectBuilder.h"
+#include "eld/Support/Memory.h"
+#include "eld/Support/MsgHandling.h"
+#include "eld/SymbolResolver/IRBuilder.h"
+#include "eld/SymbolResolver/LDSymbol.h"
+#include "eld/Target/ELFFileFormat.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/ELF.h"
+#include <map>
+
+using namespace eld;
+
+namespace {
+
+static Relocator::Result emitSignedOrUnsignedRangeOverflow(Relocation &Rel,
+                                                           AArch64Relocator &R,
+                                                           int64_t Value,
+                                                           unsigned Bits) {
+  int64_t Min = llvm::minIntN(Bits);
+  int64_t Max = llvm::maxUIntN(Bits);
+  Rel.issueSignedOverflow(R, Value, Min, Max);
+  return Relocator::Overflow;
+}
+
+static bool isAuthReloc(const Relocation &pReloc) {
+  Relocation::Type type = pReloc.type();
+  return type == llvm::ELF::R_AARCH64_AUTH_ABS64 ||
+         type == llvm::ELF::R_AARCH64_AUTH_RELATIVE;
+}
+
+static uint64_t getSigningSchema(const Relocation &pReloc) {
+  if (!isAuthReloc(pReloc))
+    return 0ULL;
+  // PAuth signing schema is encoded in the top 32-bits
+  return pReloc.target() & 0xFFFFFFFF00000000ULL;
+}
+
+/// helper_DynRel - Get an relocation entry in .rela.dyn
+Relocation *helper_DynRel_init(ELFObjectFile *Obj, Relocation *R,
+                               ResolveInfo *pSym, Fragment *F, uint32_t pOffset,
+                               Relocator::Type pType,
+                               AArch64LDBackend &B) {
+  Relocation *rela_entry = nullptr;
+
+  if (pType == R_AARCH64_TLSDESC)
+    rela_entry = Obj->getRelaPLT()->createOneReloc();
+  else
+    rela_entry = Obj->getRelaDyn()->createOneReloc();
+
+  rela_entry->setType(pType);
+  rela_entry->setTargetRef(make<FragmentRef>(*F, pOffset));
+  rela_entry->setSymInfo(pSym);
+  if (R)
+    rela_entry->setAddend(R->addend());
+
+  // This is one insane thing, that we need to do. scanRelocations is called
+  // rightly before merge sections, so any strings that are merged need to be
+  // updated after merge is done to get the right symbol value. Lets record the
+  // fact that we created a relative relocation for a relocation that may be
+  // pointing to a merge string.
+  if (R && (pType == llvm::ELF::R_AARCH64_RELATIVE ||
+            pType == llvm::ELF::R_AARCH64_IRELATIVE ||
+            pType == llvm::ELF::R_AARCH64_AUTH_RELATIVE)) {
+    B.recordRelativeReloc(rela_entry, R);
+  }
+
+  return rela_entry;
+}
+
+AArch64GOT &CreateGOT(ELFObjectFile *Obj, Relocation &pReloc, bool pHasRel,
+                      AArch64LDBackend &B, bool isExec) {
+  ResolveInfo *rsym = pReloc.symInfo();
+  AArch64GOT *G = B.createGOT(GOT::Regular, Obj, rsym);
+
+  if (!pHasRel) {
+    G->setValueType(GOT::SymbolValue);
+    return *G;
+  }
+
+  // If the symbol is not preemptible and we are not building an executable,
+  // then try to use a relative reloc. We use a relative reloc if the symbol is
+  // hidden otherwise.
+  bool useRelative =
+      (rsym->isHidden() || (!isExec && !B.isSymbolPreemptible(*rsym)));
+  helper_DynRel_init(Obj, &pReloc, rsym, G, 0x0,
+                     useRelative ? llvm::ELF::R_AARCH64_RELATIVE
+                                 : llvm::ELF::R_AARCH64_GLOB_DAT,
+                     B);
+  if (useRelative) {
+    G->setValueType(GOT::SymbolValue);
+  }
+  return *G;
+}
+
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// Relocation Functions and Tables
+//===----------------------------------------------------------------------===//
+DECL_AARCH64_APPLY_RELOC_FUNCS
+
+/// the prototype of applying function
+typedef Relocator::Result (*ApplyFunctionType)(Relocation &pReloc,
+                                               AArch64Relocator &pParent);
+
+// the table entry of applying functions
+class ApplyFunctionEntry {
+public:
+  ApplyFunctionEntry() {}
+  ApplyFunctionEntry(ApplyFunctionType pFunc, const char *pName,
+                     size_t pSize = 0)
+      : func(pFunc), name(pName), size(pSize) {}
+  ApplyFunctionType func;
+  const char *name;
+  size_t size;
+};
+typedef std::map<Relocator::Type, ApplyFunctionEntry> ApplyFunctionMap;
+
+static const ApplyFunctionMap::value_type ApplyFunctionList[] = {
+    DECL_AARCH64_APPLY_RELOC_FUNC_PTRS(ApplyFunctionMap::value_type,
+                                       ApplyFunctionEntry)};
+
+// declare the table of applying functions
+static ApplyFunctionMap ApplyFunctions(ApplyFunctionList,
+                                       ApplyFunctionList +
+                                           sizeof(ApplyFunctionList) /
+                                               sizeof(ApplyFunctionList[0]));
+
+//===----------------------------------------------------------------------===//
+// AArch64Relocator
+//===----------------------------------------------------------------------===//
+AArch64Relocator::AArch64Relocator(AArch64LDBackend &pParent,
+                                   LinkerConfig &pConfig, Module &pModule)
+    : Relocator(pConfig, pModule), m_Target(pParent) {}
+
+AArch64Relocator::~AArch64Relocator() {}
+
+bool AArch64Relocator::isRelocSupported(Relocation &pReloc) const {
+  Relocation::Type type = pReloc.type();
+  // valid types are 0x0, 0x100-0x244
+  if ((type < 0x100 || type > 0x244) && (type != 0x0) &&
+      (type != R_AARCH64_COPY_INSN))
+    return false;
+
+  assert(ApplyFunctions.find(type) != ApplyFunctions.end());
+  return true;
+}
+
+bool AArch64Relocator::isInvalidReloc(Relocation &pReloc) const {
+  if (!config().isCodeIndep())
+    return false;
+  switch (pReloc.type()) {
+  case llvm::ELF::R_AARCH64_ABS16:
+    return true;
+  case llvm::ELF::R_AARCH64_TLSLE_ADD_TPREL_LO12_NC:
+  case llvm::ELF::R_AARCH64_TLSLE_ADD_TPREL_LO12:
+  case llvm::ELF::R_AARCH64_TLSLE_ADD_TPREL_HI12:
+    return !config().options().isPIE();
+  default:
+    break;
+  }
+  return false;
+}
+
+bool AArch64Relocator::relocNeedsDynRel(Relocation &pReloc) const {
+  ResolveInfo *rsym = pReloc.symInfo();
+  // Need dynamic relocations to sign pointers at runtime
+  if (isAuthReloc(pReloc)) {
+    // PAuth spec 8.1.1:
+    // "if the target symbol is an undefined weak reference, the result of
+    // the relocation is 0 (nullptr) regardless of the signing schema"
+    if (rsym && rsym->isWeak() && rsym->isUndef())
+      return false;
+    return true;
+  }
+  // Only ABS64 relocations can be dynamic in AArch64
+  bool isAbsReloc = pReloc.type() == llvm::ELF::R_AARCH64_ABS64;
+  return getTarget().symbolNeedsDynRel(
+                   *rsym, (rsym->reserved() & ReservePLT),
+                   isAbsReloc);
+}
+
+Relocator::Result AArch64Relocator::applyRelocation(Relocation &pRelocation) {
+  if (!isRelocSupported(pRelocation))
+    return Relocator::Unknown;
+
+  ResolveInfo *symInfo = pRelocation.symInfo();
+
+  if (symInfo) {
+    LDSymbol *outSymbol = symInfo->outSymbol();
+    if (outSymbol && outSymbol->hasFragRef()) {
+      ELFSection *S = outSymbol->fragRef()->frag()->getOwningSection();
+      if (S->isDiscard() ||
+          (S->getOutputSection() && S->getOutputSection()->isDiscard())) {
+        std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+        issueUndefRef(pRelocation, *S->getInputFile(), S);
+        return Relocator::OK;
+      }
+    }
+  }
+
+  Relocation::Type type = pRelocation.type();
+  return ApplyFunctions[type].func(pRelocation, *this);
+}
+
+const char *AArch64Relocator::getName(Relocator::Type pType) const {
+  assert(ApplyFunctions.find(pType) != ApplyFunctions.end());
+  return ApplyFunctions[pType].name;
+}
+
+uint32_t AArch64Relocator::getNumRelocs() const { return AARCH64_MAXRELOCS; }
+
+Relocator::Size AArch64Relocator::getSize(Relocation::Type pType) const {
+  if (ApplyFunctions.find(pType) == ApplyFunctions.end())
+    return 0;
+  return ApplyFunctions[pType].size;
+}
+
+void AArch64Relocator::scanLocalReloc(InputFile &pInput, Relocation &pReloc,
+                                      const ELFSection &pSection) {
+  ELFObjectFile *Obj = llvm::dyn_cast<ELFObjectFile>(&pInput);
+  // rsym - The relocation target symbol
+  ResolveInfo *rsym = pReloc.symInfo();
+  switch (pReloc.type()) {
+  case llvm::ELF::R_AARCH64_AUTH_ABS64:
+  case llvm::ELF::R_AARCH64_ABS64: {
+    bool isAuthAbs = pReloc.type() == llvm::ELF::R_AARCH64_AUTH_ABS64;
+    // If building PIC object (shared library or PIC executable)
+    // or dealing with a signed relocation,
+    // a dynamic relocations with RELATIVE type to this location is needed.
+    // Reserve an entry in .rel.dyn
+    if (config().isCodeIndep() || isAuthAbs) {
+      std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+      // set Rel bit
+      rsym->setReserved(rsym->reserved() | ReserveRel);
+      getTarget().checkAndSetHasTextRel(pSection);
+      // set up the dyn rel directly
+      Relocation::Type relType =
+        isAuthAbs ? llvm::ELF::R_AARCH64_AUTH_RELATIVE
+                  : llvm::ELF::R_AARCH64_RELATIVE;
+      helper_DynRel_init(Obj, &pReloc, rsym, pReloc.targetRef()->frag(),
+                         pReloc.targetRef()->offset(), relType,
+                         m_Target);
+    }
+  }
+    return;
+
+  case llvm::ELF::R_AARCH64_ABS32:
+  case llvm::ELF::R_AARCH64_ABS16:
+    // If building PIC object (shared library or PIC executable),
+    // a dynamic relocations with RELATIVE type to this location is needed.
+    // Reserve an entry in .rel.dyn
+    if (config().isCodeIndep()) {
+      std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+      // set up the dyn rel directly
+      helper_DynRel_init(Obj, &pReloc, rsym, pReloc.targetRef()->frag(),
+                         pReloc.targetRef()->offset(), pReloc.type(), m_Target);
+      // set Rel bit
+      rsym->setReserved(rsym->reserved() | ReserveRel);
+      getTarget().checkAndSetHasTextRel(pSection);
+    }
+    return;
+
+  case llvm::ELF::R_AARCH64_ADR_GOT_PAGE:
+  case llvm::ELF::R_AARCH64_LD64_GOT_LO12_NC:
+  case llvm::ELF::R_AARCH64_LD64_GOTPAGE_LO15: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    // Symbol needs GOT entry, reserve entry in .got
+    // return if we already create GOT for this symbol
+    if (rsym->reserved() & ReserveGOT)
+      return;
+    // If building PIC object, a dynamic relocation with
+    // type RELATIVE is needed to relocate this GOT entry.
+    CreateGOT(Obj, pReloc, config().isCodeIndep(), m_Target,
+              config().codeGenType() == LinkerConfig::Exec);
+    // set GOT bit
+    rsym->setReserved(rsym->reserved() | ReserveGOT);
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
+  case llvm::ELF::R_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    if (rsym->reserved() & ReserveGOT)
+      return;
+
+    // Dont use a GOT, convert the instruction.
+    if (config().isCodeStatic())
+      return;
+    AArch64GOT *G = m_Target.createGOT(GOT::TLS_IE, Obj, rsym);
+    helper_DynRel_init(Obj, &pReloc, rsym, G, 0x0,
+                       llvm::ELF::R_AARCH64_TLS_TPREL64, m_Target);
+    if (rsym->reserved() == Relocator::None)
+      rsym->setReserved(rsym->reserved() | ReserveGOT);
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_TLSDESC_ADR_PAGE21:
+  case llvm::ELF::R_AARCH64_TLSDESC_LD64_LO12:
+  case llvm::ELF::R_AARCH64_TLSDESC_ADD_LO12: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+
+    // Symbol needs GOT entry, reserve entry in .got
+    // return if we already create GOT for this symbol
+    if (rsym->reserved() & ReserveGOT)
+      return;
+
+    if (config().isCodeStatic()) {
+      AArch64GOT *G = m_Target.createGOT(GOT::TLS_IE, Obj, rsym);
+      rsym->setReserved(rsym->reserved() | ReserveGOT);
+      G->setValueType(GOT::TLSStaticSymbolValue);
+      return;
+    }
+    AArch64GOT *G = m_Target.createGOT(GOT::TLS_DESC, Obj, rsym);
+    helper_DynRel_init(Obj, &pReloc, rsym, G->getFirst(), 0x0,
+                       llvm::ELF::R_AARCH64_TLSDESC, m_Target);
+    if (rsym->reserved() == Relocator::None)
+      rsym->setReserved(rsym->reserved() | ReserveGOT);
+    return;
+  }
+
+  default:
+    break;
+  }
+}
+
+void AArch64Relocator::scanGlobalReloc(InputFile &pInput, Relocation &pReloc,
+                                       eld::IRBuilder &pBuilder,
+                                       ELFSection &pSection,
+                                       CopyRelocs &CopyRelocs) {
+  ELFObjectFile *Obj = llvm::dyn_cast<ELFObjectFile>(&pInput);
+  // rsym - The relocation target symbol
+  ResolveInfo *rsym = pReloc.symInfo();
+  switch (pReloc.type()) {
+  case llvm::ELF::R_AARCH64_AUTH_ABS64:
+  case llvm::ELF::R_AARCH64_ABS16:
+  case llvm::ELF::R_AARCH64_ABS32:
+  case llvm::ELF::R_AARCH64_ABS64: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    if (handleScanForNonPreemptibleIFunc(rsym, Obj))
+      return;
+    bool isAuthAbs = pReloc.type() == llvm::ELF::R_AARCH64_AUTH_ABS64;
+    // Absolute relocation type, symbol may needs PLT entry or
+    // dynamic relocation entry
+    bool isSymbolPreemptible = m_Target.isSymbolPreemptible(*rsym);
+    if (isSymbolPreemptible && (rsym->type() == ResolveInfo::Function)) {
+      // create plt for this symbol if it does not have one
+      if (!(rsym->reserved() & ReservePLT)) {
+        // Symbol needs PLT entry, we need a PLT entry
+        // and the corresponding GOT and dynamic relocation entry
+        // in .got and .rel.plt.
+        m_Target.createPLT(Obj, rsym);
+        // set PLT bit
+        rsym->setReserved(rsym->reserved() | ReservePLT);
+      }
+    }
+
+    if (relocNeedsDynRel(pReloc)) {
+      // symbol needs dynamic relocation entry, set up the dynrel entry
+      if (getTarget().symbolNeedsCopyReloc(pReloc, *rsym)) {
+        // PAuth spec 5.3:
+        // "PAUTHELF64 does not support the R_AARCH64_COPY relocation
+        // for signed pointers"
+        if (isAuthAbs) {
+          config().raise(Diag::non_pic_relocation)
+            << getName(pReloc.type()) << pReloc.symInfo()->name()
+            << pReloc.getSourcePath(config().options());
+          m_Target.getModule().setFailure(true);
+          return;
+        }
+        // check if the option -z nocopyreloc is given
+        if (config().options().hasNoCopyReloc()) {
+          config().raise(Diag::copyrelocs_is_error)
+              << rsym->name() << pInput.getInput()->decoratedPath()
+              << rsym->resolvedOrigin()->getInput()->decoratedPath();
+          return;
+        }
+        CopyRelocs.insert(rsym);
+      } else {
+        // set Rel bit
+        rsym->setReserved(rsym->reserved() | ReserveRel);
+        getTarget().checkAndSetHasTextRel(pSection);
+        // set up the dyn rel directly
+        Relocation::Type relType;
+        if (isSymbolPreemptible) {
+          relType = pReloc.type();
+        } else {
+          relType = isAuthAbs ? llvm::ELF::R_AARCH64_AUTH_RELATIVE
+                              : llvm::ELF::R_AARCH64_RELATIVE;
+        }
+        helper_DynRel_init(
+            Obj, &pReloc, rsym, pReloc.targetRef()->frag(),
+            pReloc.targetRef()->offset(),
+            relType, m_Target);
+      }
+    }
+  }
+    return;
+
+  case llvm::ELF::R_AARCH64_PREL64:
+  case llvm::ELF::R_AARCH64_PREL32:
+  case llvm::ELF::R_AARCH64_PREL16: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    bool isSymbolPreemptible = m_Target.isSymbolPreemptible(*rsym);
+    if (isSymbolPreemptible) {
+      if ((rsym->type() == ResolveInfo::Function) &&
+          LinkerConfig::DynObj != config().codeGenType()) {
+        // create plt for this symbol if it does not have one
+        if (!(rsym->reserved() & ReservePLT)) {
+          // Symbol needs PLT entry, we need a PLT entry
+          // and the corresponding GOT and dynamic relocation entry
+          // in .got and .rel.plt.
+          m_Target.createPLT(Obj, rsym);
+          // set PLT bit
+          rsym->setReserved(rsym->reserved() | ReservePLT);
+        }
+      }
+    }
+
+    if (relocNeedsDynRel(pReloc) &&
+        getTarget().symbolNeedsCopyReloc(pReloc, *rsym)) {
+      // check if the option -z nocopyreloc is given
+      if (config().options().hasNoCopyReloc()) {
+        config().raise(Diag::copyrelocs_is_error)
+            << rsym->name() << pInput.getInput()->decoratedPath()
+            << rsym->resolvedOrigin()->getInput()->decoratedPath();
+        return;
+      }
+      CopyRelocs.insert(rsym);
+    }
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_CONDBR19:
+  case llvm::ELF::R_AARCH64_JUMP26:
+  case llvm::ELF::R_AARCH64_CALL26: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    if (handleScanForNonPreemptibleIFunc(rsym, Obj))
+      return;
+    // return if we already create plt for this symbol
+    if (rsym->reserved() & ReservePLT)
+      return;
+
+    // if symbol is defined in the output file and it's not
+    // preemptible, no need plt
+    if (!getTarget().isSymbolPreemptible(*rsym)) {
+      return;
+    }
+
+    // Symbol needs PLT entry, we need to reserve a PLT entry
+    // and the corresponding GOT and dynamic relocation entry
+    // in .got and .rel.plt.
+    m_Target.createPLT(Obj, rsym);
+    // set PLT bit
+    rsym->setReserved(rsym->reserved() | ReservePLT);
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_ADR_PREL_PG_HI21:
+  case R_AARCH64_ADR_PREL_PG_HI21_NC: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    if (handleScanForNonPreemptibleIFunc(rsym, Obj))
+      return;
+    if (relocNeedsDynRel(pReloc)) {
+      if (getTarget().symbolNeedsCopyReloc(pReloc, *rsym)) {
+        // check if the option -z nocopyreloc is given
+        if (config().options().hasNoCopyReloc()) {
+          config().raise(Diag::copyrelocs_is_error)
+              << rsym->name() << pInput.getInput()->decoratedPath()
+              << rsym->resolvedOrigin()->getInput()->decoratedPath();
+          return;
+        }
+
+        CopyRelocs.insert(rsym);
+      }
+    }
+    bool isSymbolPreemptible = m_Target.isSymbolPreemptible(*rsym);
+    if (isSymbolPreemptible) {
+      // create plt for this symbol if it does not have one
+      if ((rsym->type() == ResolveInfo::Function) &&
+          !(rsym->reserved() & ReservePLT)) {
+        // Symbol needs PLT entry, we need a PLT entry
+        // and the corresponding GOT and dynamic relocation entry
+        // in .got and .rel.plt.
+        m_Target.createPLT(Obj, rsym);
+        // set PLT bit
+        rsym->setReserved(rsym->reserved() | ReservePLT);
+      }
+    }
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_ADR_GOT_PAGE:
+  case llvm::ELF::R_AARCH64_LD64_GOT_LO12_NC:
+  case llvm::ELF::R_AARCH64_LD64_GOTPAGE_LO15: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    if (handleScanForNonPreemptibleIFunc(rsym, Obj))
+      return;
+    // Symbol needs GOT entry, reserve entry in .got
+    // return if we already create GOT for this symbol
+    if (rsym->reserved() & ReserveGOT)
+      return;
+
+    // if the symbol cannot be fully resolved at link time, then we need a
+    // dynamic relocation
+    CreateGOT(Obj, pReloc, !config().isCodeStatic(), m_Target,
+              config().codeGenType() == LinkerConfig::Exec);
+    // set GOT bit
+    rsym->setReserved(rsym->reserved() | ReserveGOT);
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
+  case llvm::ELF::R_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    // Symbol needs GOT entry, reserve entry in .got
+    // return if we already create GOT for this symbol
+    if (rsym->reserved() & ReserveGOT)
+      return;
+
+    // set up the got and the corresponding rel entry
+    AArch64GOT *G = m_Target.createGOT(GOT::TLS_IE, Obj, rsym);
+    if (config().isCodeStatic()) {
+      rsym->setReserved(rsym->reserved() | ReserveGOT);
+      G->setValueType(GOT::TLSStaticSymbolValue);
+      return;
+    }
+    helper_DynRel_init(Obj, &pReloc, rsym, G, 0x0,
+                       llvm::ELF::R_AARCH64_TLS_TPREL64, m_Target);
+    rsym->setReserved(rsym->reserved() | ReserveGOT);
+    return;
+  }
+
+  case llvm::ELF::R_AARCH64_TLSDESC_ADR_PAGE21:
+  case llvm::ELF::R_AARCH64_TLSDESC_LD64_LO12:
+  case llvm::ELF::R_AARCH64_TLSDESC_ADD_LO12: {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+
+    // Symbol needs GOT entry, reserve entry in .got
+    // return if we already create GOT for this symbol
+    if (rsym->reserved() & ReserveGOT)
+      return;
+
+    if (config().isCodeStatic()) {
+      AArch64GOT *G = m_Target.createGOT(GOT::TLS_IE, Obj, rsym);
+      rsym->setReserved(rsym->reserved() | ReserveGOT);
+      G->setValueType(GOT::TLSStaticSymbolValue);
+      return;
+    }
+    AArch64GOT *G = m_Target.createGOT(GOT::TLS_DESC, Obj, rsym);
+    helper_DynRel_init(Obj, &pReloc, rsym, G->getFirst(), 0x0,
+                       llvm::ELF::R_AARCH64_TLSDESC, m_Target);
+    rsym->setReserved(rsym->reserved() | ReserveGOT);
+    return;
+  };
+
+  default:
+    break;
+  }
+}
+
+void AArch64Relocator::partialScanRelocation(Relocation &pReloc,
+                                             const ELFSection &pSection) {
+  pReloc.updateAddend(m_Module);
+
+  // if we meet a section symbol
+  if (pReloc.symInfo()->type() == ResolveInfo::Section) {
+    LDSymbol *input_sym = pReloc.symInfo()->outSymbol();
+
+    // 1. update the relocation target offset
+    assert(input_sym->hasFragRef());
+    // 2. get the output ELFSection which the symbol defined in
+    ELFSection *out_sect = input_sym->fragRef()->getOutputELFSection();
+
+    ResolveInfo *sym_info = m_Module.getSectionSymbol(out_sect);
+    // set relocation target symbol to the output section symbol's resolveInfo
+    pReloc.setSymInfo(sym_info);
+  }
+}
+
+void AArch64Relocator::scanRelocation(Relocation &pReloc,
+                                      eld::IRBuilder &pBuilder,
+                                      ELFSection &pSection,
+                                      InputFile &pInputFile,
+                                      CopyRelocs &CopyRelocs) {
+  if (LinkerConfig::Object == config().codeGenType())
+    return;
+
+  if (!isRelocSupported(pReloc)) {
+    config().raise(Diag::unsupported_reloc)
+        << pReloc.type() << pSection.getDecoratedName(config().options())
+        << pInputFile.getInput()->decoratedPath();
+    m_Target.getModule().setFailure(true);
+    return;
+  }
+
+  if (isInvalidReloc(pReloc)) {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    config().raise(Diag::non_pic_relocation)
+        << getName(pReloc.type()) << pReloc.symInfo()->name()
+        << pReloc.getSourcePath(config().options());
+    m_Target.getModule().setFailure(true);
+    return;
+  }
+
+  // rsym - The relocation target symbol
+  ResolveInfo *rsym = pReloc.symInfo();
+  assert(nullptr != rsym &&
+         "ResolveInfo of relocation not set while scanRelocation");
+
+  // Check if we are tracing relocations.
+  if (m_Module.getPrinter()->traceReloc()) {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    std::string relocName = getName(pReloc.type());
+    if (config().options().traceReloc(relocName))
+      config().raise(Diag::reloc_trace)
+          << relocName << pReloc.symInfo()->name()
+          << pInputFile.getInput()->decoratedPath();
+  }
+
+  // check if we should issue undefined reference for the relocation target
+  // symbol
+  {
+    if (rsym->isUndef() || rsym->isBitCode()) {
+      std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+      if (m_Target.canIssueUndef(rsym)) {
+        if (rsym->visibility() != ResolveInfo::Default)
+          issueInvisibleRef(pReloc, pInputFile);
+        issueUndefRef(pReloc, pInputFile, &pSection);
+      }
+    }
+  }
+
+  ELFSection *section = pSection.getLink()
+                            ? pSection.getLink()
+                            : pReloc.targetRef()->frag()->getOwningSection();
+
+  if (!section->isAlloc()) {
+    // Cannot have authenticated relocations in non-alloc sections (like .debug)
+    if (isAuthReloc(pReloc)) {
+      std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+      config().raise(Diag::reloc_nonalloc_section)
+          << getName(pReloc.type()) << pReloc.symInfo()->name()
+          << pSection.getDecoratedName(config().options());
+      m_Target.getModule().setFailure(true);
+    }
+    return;
+  }
+
+  if (rsym->isLocal()) // rsym is local
+    scanLocalReloc(pInputFile, pReloc, *section);
+  else // rsym is external
+    scanGlobalReloc(pInputFile, pReloc, pBuilder, *section, CopyRelocs);
+}
+
+//===----------------------------------------------------------------------===//
+// Each relocation function implementation
+//===----------------------------------------------------------------------===//
+
+// R_AARCH64_NONE
+Relocator::Result none(Relocation &pReloc, AArch64Relocator &pParent) {
+  return Relocator::OK;
+}
+
+Relocator::Result unsupport(Relocation &pReloc, AArch64Relocator &pParent) {
+  return Relocator::Unsupport;
+}
+
+// R_AARCH64_ABS64: S + A
+// R_AARCH64_ABS32: S + A
+// R_AARCH64_ABS16: S + A
+// R_AARCH64_AUTH_ABS64: PAUTH(S + A)
+Relocator::Result abs(Relocation &pReloc, AArch64Relocator &pParent) {
+  ResolveInfo *rsym = pReloc.symInfo();
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord S;
+  if (LLVM_UNLIKELY(rsym && rsym->isIFunc() &&
+                    pParent.config().isCodeStatic())) {
+    AArch64PLT *P = pParent.getTarget().findEntryInPLT(rsym);
+    S = P->getAddr(pParent.config().getDiagEngine());
+    // Create GOT slot for rsym with the fragment reference of P
+  } else
+    S = pParent.getSymValue(&pReloc);
+  Relocator::Address targetVal = S + A;
+
+  bool isAuthAbs = pReloc.type() == llvm::ELF::R_AARCH64_AUTH_ABS64;
+  ELFSection *target_sect = pReloc.targetRef()->getOutputELFSection();
+  // If the flag of target section is not ALLOC, we will not scan this
+  // relocation but perform static relocation. (e.g., applying .debug section)
+  if (!target_sect->isAlloc()) {
+    // Making sure it's already handled during relocations scan
+    assert(!isAuthAbs);
+    pReloc.target() = S + A;
+    return Relocator::OK;
+  }
+
+  if (isAuthAbs) {
+    // Handle authenticated pointer relocations:
+    // - Undefined weak reference: the relocation is 0 regardless of the schema
+    // - AUTH_RELATIVE: write only schema (dynamic linker adds address)
+    // - AUTH_ABS64 (preemptible): skip writing (dynamic linker handles)
+    // - AUTH_ABS64 (non-preemptible): write address + schema
+
+    // PAuth spec 8.1.1:
+    // "if the target symbol is an undefined weak reference, the result of
+    // the relocation is 0 (nullptr) regardless of the signing schema"
+    if (rsym && rsym->isWeak() && rsym->isUndef()) {
+      pReloc.target() = 0;
+      return Relocator::OK;
+    }
+    Relocator::DWord signingSchema = getSigningSchema(pReloc);
+    if (rsym && (rsym->reserved() & Relocator::ReserveRel)) {
+      Relocation *dynrel = pParent.getTarget().findRelativeReloc(&pReloc);
+      // Only store the signing schema in the place for authenticated RELA
+      if (dynrel && (dynrel->type() == llvm::ELF::R_AARCH64_AUTH_RELATIVE)) {
+        pReloc.target() = signingSchema;
+        return Relocator::OK;
+      }
+    }
+    targetVal = static_cast<uint32_t>(targetVal) | signingSchema;
+  }
+
+  if (rsym && (rsym->reserved() & Relocator::ReserveRel) &&
+      (pParent.getTarget().isSymbolPreemptible(*rsym)))
+    return Relocator::OK;
+
+  if (rsym && rsym->reserved() & Relocator::ReservePLT)
+    S = pParent.getTarget().findEntryInPLT(rsym)->getAddr(
+        pParent.config().getDiagEngine());
+
+  if (rsym && rsym->isWeakUndef() &&
+      (pParent.config().codeGenType() == LinkerConfig::Exec))
+    S = 0;
+
+  switch (pReloc.type()) {
+  case llvm::ELF::R_AARCH64_ABS32:
+    if (!llvm::isUInt<32>(S + A) && !llvm::isInt<32>(S + A))
+      return emitSignedOrUnsignedRangeOverflow(pReloc, pParent, S + A, 32);
+    break;
+  case llvm::ELF::R_AARCH64_ABS16:
+    if (!llvm::isUInt<16>(S + A) && !llvm::isInt<16>(S + A))
+      return emitSignedOrUnsignedRangeOverflow(pReloc, pParent, S + A, 16);
+    break;
+  default:
+    break;
+  }
+
+  // A local symbol may need RELATIVE Type dynamic relocation
+  // perform static relocation
+  pReloc.target() = targetVal;
+  return Relocator::OK;
+}
+
+// R_AARCH64_PREL64: S + A - P
+// R_AARCH64_PREL32: S + A - P
+// R_AARCH64_PREL16: S + A - P
+Relocator::Result rel(Relocation &pReloc, AArch64Relocator &pParent) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  ResolveInfo *rsym = pReloc.symInfo();
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  // similar to how we have handled getSymValue, and geSymInfo.
+  // take relocation as an argument.
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord P = pReloc.place(pParent.module());
+
+  if (llvm::ELF::R_AARCH64_PREL64 != pReloc.type())
+    A += pReloc.target() & get_mask(pParent.getSize(pReloc.type()));
+  else
+    A += pReloc.target();
+
+  ELFSection *target_sect = pReloc.targetRef()->getOutputELFSection();
+  // If the flag of target section is not ALLOC, we will not scan this
+  // relocation but perform static relocation. (e.g., applying .debug section)
+  if (target_sect->isAlloc()) {
+    // if plt entry exists, the S value is the plt entry address
+    if (!rsym->isLocal()) {
+      if (rsym->reserved() & Relocator::ReservePLT) {
+        S = pParent.getTarget().findEntryInPLT(rsym)->getAddr(DiagEngine);
+      }
+    }
+  }
+
+  Relocator::DWord X = S + A - P;
+  pReloc.target() = X;
+
+  if (llvm::ELF::R_AARCH64_PREL64 != pReloc.type() &&
+      helper_check_signed_overflow(X, pParent.getSize(pReloc.type())))
+    return checkSignedRange(pReloc, pParent, X, pParent.getSize(pReloc.type()));
+  return Relocator::OK;
+}
+
+// R_AARCH64_ADD_ABS_LO12_NC: S + A
+Relocator::Result add_abs_lo12(Relocation &pReloc, AArch64Relocator &pParent) {
+  Relocator::Address value = 0x0;
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  Relocator::DWord A = pReloc.addend();
+
+  // S depends on PLT exists or not
+  if (pReloc.symInfo()->reserved() & Relocator::ReservePLT)
+    S = pParent.getTarget()
+            .findEntryInPLT(pReloc.symInfo())
+            ->getAddr(pParent.config().getDiagEngine());
+
+  value = helper_get_page_offset(S + A);
+  pReloc.target() = helper_reencode_add_imm(pReloc.target(), value);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_ADR_PREL_PG_HI21: ((PG(S + A) - PG(P)) >> 12)
+// R_AARCH64_ADR_PREL_PG_HI21_NC: ((PG(S + A) - PG(P)) >> 12)
+Relocator::Result adr_prel_pg_hi21(Relocation &pReloc,
+                                   AArch64Relocator &pParent) {
+  ResolveInfo *rsym = pReloc.symInfo();
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  // if plt entry exists, the S value is the plt entry address
+  if (rsym->reserved() & Relocator::ReservePLT) {
+    S = pParent.getTarget().findEntryInPLT(rsym)->getAddr(
+        pParent.config().getDiagEngine());
+  }
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord P = pReloc.place(pParent.module());
+  Relocator::DWord X =
+      helper_get_page_address(S + A) - helper_get_page_address(P);
+
+  pReloc.target() = helper_reencode_adr_imm(pReloc.target(), (X >> 12));
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_ADR_PREL_LO21: (S + A) - P
+Relocator::Result adr_prel_lo21(Relocation &pReloc, AArch64Relocator &pParent) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  ResolveInfo *rsym = pReloc.symInfo();
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  // if plt entry exists, the S value is the plt entry address
+  if (rsym->reserved() & Relocator::ReservePLT) {
+    S = pParent.getTarget().findEntryInPLT(rsym)->getAddr(DiagEngine);
+  }
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord P = pReloc.place(pParent.module());
+
+  Relocator::DWord X = S + A - P;
+  // TODO:: check overflow
+
+  pReloc.target() = helper_reencode_adr_imm(pReloc.target(), X);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_LD_PREL_LO19: (S + A) - P
+Relocator::Result ld_prel_lo19(Relocation &pReloc, AArch64Relocator &pParent) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  ResolveInfo *rsym = pReloc.symInfo();
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  // if plt entry exists, the S value is the plt entry address
+  if (rsym->reserved() & Relocator::ReservePLT) {
+    S = pParent.getTarget().findEntryInPLT(rsym)->getAddr(DiagEngine);
+  }
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord P = pReloc.place(pParent.module());
+
+  Relocator::DWord X = S + A - P;
+  // TODO:: check overflow
+
+  pReloc.target() = helper_reencode_ld_literal_19(pReloc.target(), X >> 2);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_CALL26: S + A - P
+// R_AARCH64_JUMP26: S + A - P
+Relocator::Result call(Relocation &pReloc, AArch64Relocator &pParent) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  // If target is undefined weak symbol, we only need to jump to the
+  // next instruction unless it has PLT entry. Rewrite instruction
+  // to NOP.
+  if (pReloc.symInfo()->isWeak() && pReloc.symInfo()->isUndef() &&
+      !pReloc.symInfo()->isDyn() &&
+      !(pReloc.symInfo()->reserved() & Relocator::ReservePLT)) {
+    // change target to NOP
+    pReloc.target() = 0xd503201f;
+    return Relocator::OK;
+  }
+
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  Relocator::DWord A = pReloc.addend();
+  Relocator::Address P = pReloc.place(pParent.module());
+
+  // S depends on PLT exists or not
+  if (pReloc.symInfo()->reserved() & Relocator::ReservePLT)
+    S = pParent.getTarget()
+            .findEntryInPLT(pReloc.symInfo())
+            ->getAddr(DiagEngine);
+
+  Relocator::DWord X = S + A - P;
+  // TODO: check overflow..
+
+  pReloc.target() = helper_reencode_branch_offset_26(pReloc.target(), X >> 2);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_CONDBR19: S + A - P
+Relocator::Result condbr(Relocation &pReloc, AArch64Relocator &pParent) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  // If target is undefined weak symbol, we only need to jump to the
+  // next instruction unless it has PLT entry. Rewrite instruction
+  // to NOP.
+  if (pReloc.symInfo()->isWeak() && pReloc.symInfo()->isUndef() &&
+      !pReloc.symInfo()->isDyn() &&
+      !(pReloc.symInfo()->reserved() & Relocator::ReservePLT)) {
+    // change target to NOP
+    pReloc.target() = 0xd503201f;
+    return Relocator::OK;
+  }
+
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  Relocator::DWord A = pReloc.addend();
+  Relocator::Address P = pReloc.place(pParent.module());
+
+  // S depends on PLT exists or not
+  if (pReloc.symInfo()->reserved() & Relocator::ReservePLT)
+    S = pParent.getTarget()
+            .findEntryInPLT(pReloc.symInfo())
+            ->getAddr(DiagEngine);
+
+  Relocator::DWord X = S + A - P;
+
+  if (pReloc.type() == llvm::ELF::R_AARCH64_CONDBR19) {
+    if (!llvm::isInt<21>(X))
+      return checkSignedRange(pReloc, pParent, X, 21);
+    pReloc.target() =
+        helper_reencode_cond_branch_ofs_19(pReloc.target(), X >> 2);
+  } else if (pReloc.type() == llvm::ELF::R_AARCH64_TSTBR14) {
+    if (!llvm::isInt<16>(X))
+      return checkSignedRange(pReloc, pParent, X, 16);
+    pReloc.target() = helper_reencode_tbz_imm_14(pReloc.target(), X >> 2);
+  }
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_ADR_GOT_PAGE: Page(G(GDAT(S+A))) - Page(P)
+Relocator::Result adr_got_page(Relocation &pReloc, AArch64Relocator &pParent) {
+  LinkerConfig &config = pParent.config();
+  DiagnosticEngine *DiagEngine = config.getDiagEngine();
+  ResolveInfo *symInfo = pReloc.symInfo();
+  bool isStaticIFunc = symInfo->isIFunc() && config.isCodeStatic();
+  if ((!isStaticIFunc && !(symInfo->reserved() & Relocator::ReserveGOT)) ||
+      (isStaticIFunc && !(symInfo->reserved() & Relocator::ReservePLT))) {
+    return Relocator::BadReloc;
+  }
+  Relocator::Address GOT_S;
+  if (LLVM_UNLIKELY(isStaticIFunc)) {
+    AArch64PLT *PLT = pParent.getTarget().findEntryInPLT(symInfo);
+    ASSERT(PLT, "Must not be null!");
+    GOT_S = PLT->getGOT()->getAddr(DiagEngine);
+  } else {
+    GOT_S = pParent.getTarget()
+                .findEntryInGOT(pReloc.symInfo())
+                ->getAddr(DiagEngine);
+  }
+  Relocator::DWord A = pReloc.addend();
+  Relocator::Address P = pReloc.place(pParent.module());
+  Relocator::DWord X =
+      helper_get_page_address(GOT_S + A) - helper_get_page_address(P);
+
+  pReloc.target() = helper_reencode_adr_imm(pReloc.target(), (X >> 12));
+
+  // setup relocation addend if needed
+  return Relocator::OK;
+}
+
+// R_AARCH64_LD64_GOT_LO12_NC: G(GDAT(S))
+Relocator::Result ld64_got_lo12(Relocation &pReloc, AArch64Relocator &pParent) {
+  ResolveInfo *symInfo = pReloc.symInfo();
+  LinkerConfig &config = pParent.config();
+  bool isStaticIFunc = symInfo->isIFunc() && config.isCodeStatic();
+  if ((!isStaticIFunc &&
+       !(pReloc.symInfo()->reserved() & Relocator::ReserveGOT)) ||
+      (isStaticIFunc && !(symInfo->reserved() & Relocator::ReservePLT))) {
+    return Relocator::BadReloc;
+  }
+
+  Relocator::Address GOT_S;
+
+  if (LLVM_UNLIKELY(isStaticIFunc)) {
+    AArch64PLT *PLT = pParent.getTarget().findEntryInPLT(symInfo);
+    ASSERT(PLT, "Must not be null!");
+    GOT_S = PLT->getGOT()->getAddr(pParent.config().getDiagEngine());
+  } else {
+    GOT_S = pParent.getTarget()
+                .findEntryInGOT(pReloc.symInfo())
+                ->getAddr(pParent.config().getDiagEngine());
+  }
+
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord X = helper_get_page_offset(GOT_S + A);
+
+  pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), (X >> 3));
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_LD64_GOTPAGE_LO15: G(GDAT(S)) - Page(GOT)
+Relocator::Result ld64_gotpage_lo15(Relocation &pReloc, AArch64Relocator &pParent) {
+  if (!(pReloc.symInfo()->reserved() & Relocator::ReserveGOT)) {
+    return Relocator::BadReloc;
+  }
+
+  Relocator::Address GOT_S = pParent.getTarget()
+                                 .findEntryInGOT(pReloc.symInfo())
+                                 ->getAddr(pParent.config().getDiagEngine());
+  Relocator::Address GOT_ORG =
+      pParent.getTarget().getGOT()->getOutputSection()->getSection()->addr();
+  Relocator::DWord X = GOT_S - helper_get_page_address(GOT_ORG);
+
+  if ((X & 7) != 0 || X >= (1ULL << 15)) {
+    return Relocator::BadReloc;
+  }
+
+  pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), (X >> 3));
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_LDST8_ABS_LO12_NC: S + A
+// R_AARCH64_LDST16_ABS_LO12_NC: S + A
+// R_AARCH64_LDST32_ABS_LO12_NC: S + A
+// R_AARCH64_LDST64_ABS_LO12_NC: S + A
+// R_AARCH64_LDST128_ABS_LO12_NC: S + A
+Relocator::Result ldst_abs_lo12(Relocation &pReloc, AArch64Relocator &pParent) {
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord X = helper_get_page_offset(S + A);
+
+  switch (pReloc.type()) {
+  case llvm::ELF::R_AARCH64_LDST8_ABS_LO12_NC:
+    pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), X);
+    break;
+  case llvm::ELF::R_AARCH64_LDST16_ABS_LO12_NC:
+    pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), (X >> 1));
+    break;
+  case llvm::ELF::R_AARCH64_LDST32_ABS_LO12_NC:
+    pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), (X >> 2));
+    break;
+  case llvm::ELF::R_AARCH64_LDST64_ABS_LO12_NC:
+    pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), (X >> 3));
+    break;
+  case llvm::ELF::R_AARCH64_LDST128_ABS_LO12_NC:
+    pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), (X >> 4));
+    break;
+  default:
+    break;
+  }
+  return Relocator::OK;
+}
+
+// R_AARCH64_MOVW_UABS_G0: S + A
+// R_AARCH64_MOVW_UABS_G0_NC: S + A
+// R_AARCH64_MOVW_UABS_G1: S + A
+// R_AARCH64_MOVW_UABS_G1_NC: S + A
+// R_AARCH64_MOVW_UABS_G2: S + A
+// R_AARCH64_MOVW_UABS_G2_NC: S + A
+// R_AARCH64_MOVW_UABS_G3: S + A
+// R_AARCH64_MOVW_SABS_G0: S + A
+// R_AARCH64_MOVW_SABS_G1: S + A
+// R_AARCH64_MOVW_SABS_G2: S + A
+Relocator::Result movw_abs_g(Relocation &pReloc, AArch64Relocator &pParent) {
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  Relocator::DWord A = pReloc.addend();
+  Relocator::DWord X = S + A;
+
+  switch (pReloc.type()) {
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G0:
+    if (!llvm::isUInt<16>(X))
+      return checkUnsignedRange(pReloc, pParent, X, 16);
+    LLVM_FALLTHROUGH;
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G0_NC:
+    pReloc.target() = helper_reencode_movzk_imm(pReloc.target(), (X & 0xFFFF));
+    break;
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G1:
+    if (!llvm::isUInt<32>(X))
+      return checkUnsignedRange(pReloc, pParent, X, 32);
+    LLVM_FALLTHROUGH;
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G1_NC:
+    pReloc.target() =
+        helper_reencode_movzk_imm(pReloc.target(), ((X >> 16) & 0xFFFF));
+    break;
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G2:
+    if (!llvm::isUInt<48>(X))
+      return checkUnsignedRange(pReloc, pParent, X, 48);
+    LLVM_FALLTHROUGH;
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G2_NC:
+    pReloc.target() =
+        helper_reencode_movzk_imm(pReloc.target(), ((X >> 32) & 0xFFFF));
+    break;
+  case llvm::ELF::R_AARCH64_MOVW_UABS_G3:
+    pReloc.target() =
+        helper_reencode_movzk_imm(pReloc.target(), ((X >> 48) & 0xFFFF));
+    break;
+  case llvm::ELF::R_AARCH64_MOVW_SABS_G0:
+    if (!llvm::isInt<17>((X)))
+      return checkSignedRange(pReloc, pParent, X, 17);
+    pReloc.target() = helper_reencode_movzk_imm(pReloc.target(), (X & 0xFFFF));
+    break;
+  case llvm::ELF::R_AARCH64_MOVW_SABS_G1:
+    if (!llvm::isInt<33>((X)))
+      return checkSignedRange(pReloc, pParent, X, 33);
+    pReloc.target() =
+        helper_reencode_movzk_imm(pReloc.target(), ((X >> 16) & 0xFFFF));
+    break;
+  case llvm::ELF::R_AARCH64_MOVW_SABS_G2:
+    if (!llvm::isInt<49>((X)))
+      return checkSignedRange(pReloc, pParent, X, 49);
+    pReloc.target() =
+        helper_reencode_movzk_imm(pReloc.target(), ((X >> 32) & 0xFFFF));
+    break;
+  default:
+    return Relocator::Unsupport;
+  }
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21 : PAGE(G(GTPREL(S+A))) - PAGE(P)
+Relocator::Result tls_gottprel_page(Relocation &pReloc,
+                                    AArch64Relocator &pParent) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  Relocator::DWord A = pReloc.addend();
+
+  if (!(pReloc.symInfo()->reserved() & Relocator::ReserveGOT)) {
+    Relocator::DWord X =
+        pParent.getSymValue(&pReloc) + AArch64LDBackend::getStaticTCBSize();
+    // Convert to movz
+    uint32_t movz = 0xD2A00000 | (pReloc.target() & 0x0000001F);
+    pReloc.target() = helper_reencode_movzk_imm(movz, X >> 16);
+    return Relocator::OK;
+  }
+
+  Relocator::Address GOT_S =
+      pParent.getTarget().findEntryInGOT(pReloc.symInfo())->getAddr(DiagEngine);
+  Relocator::Address P = pReloc.place(pParent.module());
+  Relocator::DWord GX =
+      helper_get_page_address(GOT_S + A) - helper_get_page_address(P);
+
+  pReloc.target() = helper_reencode_adr_imm(pReloc.target(), GX >> 12);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC : G(GTPREL(S+A))
+Relocator::Result tls_gottprel_lo(Relocation &pReloc,
+                                  AArch64Relocator &pParent) {
+  Relocator::DWord A = pReloc.addend();
+
+  if (!(pReloc.symInfo()->reserved() & Relocator::ReserveGOT)) {
+    Relocator::DWord X =
+        pParent.getSymValue(&pReloc) + AArch64LDBackend::getStaticTCBSize();
+    // Convert to movk
+    uint32_t movk = 0xF2800000 | (pReloc.target() & 0x0000001F);
+    pReloc.target() = helper_reencode_movzk_imm(movk, X);
+    return Relocator::OK;
+  }
+
+  Relocator::Address GOT_S = pParent.getTarget()
+                                 .findEntryInGOT(pReloc.symInfo())
+                                 ->getAddr(pParent.config().getDiagEngine());
+  Relocator::DWord GX = helper_get_page_offset(GOT_S + A);
+
+  pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), GX >> 3);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSLE_ADD_TPREL_HI12
+// R_AARCH64_TLSLE_ADD_TPREL_LO12
+// R_AARCH64_TLSLE_ADD_TPREL_LO12_NC : TPREL(S+A)
+Relocator::Result tls_tprel(Relocation &pReloc, AArch64Relocator &pParent) {
+  Relocator::DWord X =
+      pParent.getSymValue(&pReloc) + AArch64LDBackend::getStaticTCBSize();
+
+  if (pReloc.type() == llvm::ELF::R_AARCH64_TLSLE_ADD_TPREL_HI12) {
+    if (!llvm::isUInt<24>(X))
+      return checkUnsignedRange(pReloc, pParent, X, 24);
+    pReloc.target() = helper_reencode_add_imm(pReloc.target(), X >> 12);
+  } else {
+    if (!llvm::isUInt<12>(X))
+      return checkUnsignedRange(pReloc, pParent, X, 12);
+    pReloc.target() = helper_reencode_add_imm(pReloc.target(), X);
+  }
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSDESC_ADR_PAGE21 : PAGE(G(GTLSDESC(S+A))) - PAGE(P)
+Relocator::Result tls_tlsdesc_page(Relocation &pReloc,
+                                   AArch64Relocator &pParent) {
+  Relocator::DWord A = pReloc.addend();
+
+  if (!(pReloc.symInfo()->reserved() & Relocator::ReserveGOT)) {
+    Relocator::DWord X =
+        pParent.getSymValue(&pReloc) + AArch64LDBackend::getStaticTCBSize();
+    // Convert to movz
+    uint32_t movz = 0xD2A00000 | (pReloc.target() & 0x0000001F);
+    pReloc.target() = helper_reencode_movzk_imm(movz, X >> 16);
+    return Relocator::OK;
+  }
+
+  Relocator::Address GOT_S = pParent.getTarget()
+                                 .findEntryInGOT(pReloc.symInfo())
+                                 ->getAddr(pParent.config().getDiagEngine());
+  Relocator::Address P = pReloc.place(pParent.module());
+  Relocator::DWord GX =
+      helper_get_page_address(GOT_S + A) - helper_get_page_address(P);
+
+  pReloc.target() = helper_reencode_adr_imm(pReloc.target(), GX >> 12);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSDESC_LD64_LO12_NC : G(GTLSDESC(S+A))
+Relocator::Result tls_tlsdesc_lo(Relocation &pReloc,
+                                 AArch64Relocator &pParent) {
+  Relocator::DWord A = pReloc.addend();
+
+  if (!(pReloc.symInfo()->reserved() & Relocator::ReserveGOT)) {
+    Relocator::DWord X =
+        pParent.getSymValue(&pReloc) + AArch64LDBackend::getStaticTCBSize();
+    // Convert to movk, save to x0
+    uint32_t movk = 0xF2800000;
+    pReloc.target() = helper_reencode_movzk_imm(movk, X);
+    return Relocator::OK;
+  }
+
+  Relocator::Address GOT_S = pParent.getTarget()
+                                 .findEntryInGOT(pReloc.symInfo())
+                                 ->getAddr(pParent.config().getDiagEngine());
+  Relocator::DWord GX = helper_get_page_offset(GOT_S + A);
+  pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), GX >> 3);
+
+  // Convert Rt to X0 if static
+  if (pParent.config().isCodeStatic())
+    pReloc.target() = pReloc.target() & ~0x1F;
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSDESC_ADD_LO12_NC : G(GTLSDESC(S+A))
+Relocator::Result tls_tlsdesc_add(Relocation &pReloc,
+                                  AArch64Relocator &pParent) {
+  Relocator::DWord A = pReloc.addend();
+  if (pParent.config().isCodeStatic()) {
+    // Convert to nop
+    pReloc.target() = 0xD503201F;
+    return Relocator::OK;
+  }
+
+  Relocator::Address GOT_S = pParent.getTarget()
+                                 .findEntryInGOT(pReloc.symInfo())
+                                 ->getAddr(pParent.config().getDiagEngine());
+  Relocator::DWord GX = helper_get_page_offset(GOT_S + A);
+  pReloc.target() = helper_reencode_ldst_pos_imm(pReloc.target(), GX >> 3);
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_TLSDESC_CALL
+Relocator::Result tls_call(Relocation &pReloc, AArch64Relocator &pParent) {
+  if (pParent.config().isCodeStatic()) {
+    // Convert to nop
+    pReloc.target() = 0xD503201F;
+    return Relocator::OK;
+  }
+
+  return Relocator::OK;
+}
+
+// R_AARCH64_COPY_INSN
+Relocator::Result copyInstruction(Relocation &pReloc,
+                                  AArch64Relocator &pParent) {
+  ResolveInfo *rsym = pReloc.symInfo();
+  Fragment *frag = rsym->outSymbol()->fragRef()->frag();
+  RegionFragment *rfrag = llvm::dyn_cast<RegionFragment>(frag);
+  int64_t offset = rsym->outSymbol()->fragRef()->offset();
+  const char *data =
+      rfrag->getRegion().data() + offset - AArch64InsnHelpers::InsnSize;
+  uint32_t insn = 0;
+  std::memcpy((void *)&insn, data, AArch64InsnHelpers::InsnSize);
+  pReloc.target() = insn;
+  return Relocator::OK;
+}
+
+bool AArch64Relocator::handleScanForNonPreemptibleIFunc(ResolveInfo *symInfo,
+                                                        ELFObjectFile *Obj) {
+  if (!symInfo || !symInfo->isIFunc() || !config().isCodeStatic())
+    return false;
+  if (symInfo->reserved() & Relocator::ReservePLT)
+    return true;
+  m_Target.createPLT(Obj, symInfo, /*isIRelative=*/true);
+  m_Target.defineIRelativeRange(*symInfo);
+  symInfo->setReserved(symInfo->reserved() | ReservePLT);
+  return true;
+}

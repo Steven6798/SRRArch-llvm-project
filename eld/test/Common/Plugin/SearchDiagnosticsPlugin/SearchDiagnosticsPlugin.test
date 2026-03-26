@@ -1,0 +1,19 @@
+#UNSUPPORTED: windows, iu
+#---SearchDiagnostics.test---- ----------------- Executable --------------------#
+
+#BEGIN_COMMENT
+Verify that library search messages are printed with --verbose.
+#END_COMMENT
+#START_TEST
+
+RUN: rm -rf %t-fake-path
+RUN: mkdir %t-fake-path
+RUN: %clang %clangopts -c %p/Inputs/1.c -o %t1.o
+RUN: %link %linkopts --verbose -L%t-fake-path -L %libsdir/test/ --plugin-config %p/Inputs/PluginConfig.yaml --plugin-config %p/Inputs/plugin.config  %t1.o 2>&1 | %filecheck %s
+
+CHECK: Verbose: Trying to open `{{.*}}SearchDiagnosticsPlugin{{.*}}' for linker plugin `{{.*}}SearchDiagnosticsPlugin{{.*}}' (file path):
+CHECK: Verbose: Trying to open `{{.*}}fake-path{{.*}}SearchDiagnosticsPlugin{{.*}}' for linker plugin `{{.*}}SearchDiagnosticsPlugin{{.*}}' (search path): not found
+CHECK: Verbose: Trying to open `{{.*}}SearchDiagnosticsPlugin{{.*}}' for linker plugin `{{.*}}SearchDiagnosticsPlugin{{.*}}' (rpath):
+CHECK: Verbose: Trying to open `{{.*}}SectionTypes{{.*}}' for linker plugin `{{.*}}SectionTypes{{.*}}' (file path):
+
+#END_TEST

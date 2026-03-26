@@ -1,0 +1,22 @@
+#---OverflowMemoryRegion.test--------------------- Executable,LS------------------#
+#BEGIN_COMMENT
+# This tests checks that the linker is able to parse MEMORY linker script
+# command and creates a overflow while placing all sections to the same memory
+# region
+#END_COMMENT
+#START_TEST
+RUN: %clang %clangopts -c %p/Inputs/1.c -o %t1.1.o -ffunction-sections
+RUN: %not %link -MapStyle txt %linkopts %t1.1.o -L %p/Inputs/ \
+RUN: -T %p/Inputs/script.t -o %t2.out -Map %t1.map \
+RUN: 2>&1 | %filecheck %s
+RUN: %filecheck %s -check-prefix=MAP < %t1.map
+#END_TEST
+#CHECK: Error: Memory region b1 exceeded limit while adding section .t1 : overflowed by 0x{{[a-f0-9]+}} bytes
+#CHECK: Error: Memory region b1 exceeded limit while adding section .t2 : overflowed by 0x{{[a-f0-9]+}} bytes
+#CHECK: Error: Memory region b1 exceeded limit while adding section .t3 : overflowed by 0x{{[a-f0-9]+}} bytes
+#CHECK: Error: Memory region b1 exceeded limit while adding section .t4 : overflowed by 0x{{[a-f0-9]+}} bytes
+#MAP: .t1 {{.*}} {{.*}} # Offset: {{.*}}, LMA: {{.*}}, Alignment: {{.*}}, Flags: SHF_ALLOC|SHF_EXECINSTR, Type: SHT_PROGBITS, Memory : [b1, b1]
+#MAP: .t2 {{.*}} {{.*}} # Offset: {{.*}}, LMA: {{.*}}, Alignment: {{.*}}, Flags: SHF_ALLOC|SHF_EXECINSTR, Type: SHT_PROGBITS, Memory : [b1, b1]
+#MAP: .t3 {{.*}} {{.*}} # Offset: {{.*}}, LMA: {{.*}}, Alignment: {{.*}}, Flags: SHF_ALLOC|SHF_EXECINSTR, Type: SHT_PROGBITS, Memory : [b1, b1]
+#MAP: .t4 {{.*}} {{.*}} # Offset: {{.*}}, LMA: {{.*}}, Alignment: {{.*}}, Flags: SHF_ALLOC|SHF_EXECINSTR, Type: SHT_PROGBITS, Memory : [b1, b1]
+#MAP: /DISCARD/ {{.*}} {{.*}} # Offset: {{.*}}, LMA: {{.*}}, Alignment: {{.*}}, Flags: SHF_ALLOC|SHF_WRITE, Type: SHT_NOBITS

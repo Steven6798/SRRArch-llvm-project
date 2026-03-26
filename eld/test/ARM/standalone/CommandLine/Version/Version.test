@@ -1,0 +1,8 @@
+#---Version.test--------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# Make sure that the linker shows version info properly with appropriate
+# targets.
+#END_COMMENT
+#START_TEST
+RUN: %link --version | %filecheck %s
+#CHECK-NOT: thumb

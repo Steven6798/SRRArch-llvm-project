@@ -1,0 +1,83 @@
+#----------QC_E_LI_QC_LI.test----------------- Executable------------------#
+#BEGIN_COMMENT
+# Do relaxation from QC.E.LI and QC.LI to C.LUI or QC.LI or ADDI (GP-Rel)
+#END_COMMENT
+#--------------------------------------------------------------------
+REQUIRES: riscv32
+RUN: %clang %clangopts -c %p/Inputs/x.s -o %t.o -menable-experimental-extensions -march=rv32gc_xqcili0p2
+
+## Link with Xqci, GP relaxations enabled.
+RUN: %link %linkopts --relax-xqci -MapStyle txt -Map %t.1.map --verbose %t.o -o %t.1.out -T %p/Inputs/x.t 2>&1 | %filecheck %s --check-prefix=VERBOSE
+
+VERBOSE: RISCV_QC_E_LI_QC_LI : Deleting 2 bytes for symbol 'can_qc_li' in section .text+0x4 file {{.*}}.o
+VERBOSE: RISCV_QC_E_LI_QC_LI : Cannot relax 2 bytes for symbol 'cannot_qc_li' in section .text+0x4 file {{.*}}.o
+VERBOSE: RISCV_QC_E_LI_GP : Deleting 2 bytes for symbol 'can_addi_gprel' in section .text+0xe file {{.*}}.o
+VERBOSE: RISCV_QC_E_LI_QC_LI : Cannot relax 2 bytes for symbol 'cannot_addi_gprel' in section .text+0xe file {{.*}}.o
+
+RUN: %filecheck %s --input-file=%t.1.map --check-prefix=MAP
+
+MAP: # LinkStats Begin
+MAP: # RelaxationBytesDeleted : 4
+MAP: # RelaxationBytesMissed : 4
+MAP: # LinkStats End
+
+MAP: .text {{.+}}, Alignment: 0x2, Flags: SHF_ALLOC|SHF_EXECINSTR, Type: SHT_PROGBITS
+MAP: # RelaxationBytesDeleted : 4
+MAP: # RelaxationBytesMissed : 4
+MAP: .text {{.+}}.o     #SHT_PROGBITS,SHF_ALLOC|SHF_EXECINSTR,2
+
+RUN: %objdump --no-print-imm-hex -d -M no-aliases %t.1.out 2>&1 | %filecheck %s --check-prefix=EXE
+
+EXE: <main>:
+EXE-NEXT: 0000851b      qc.li   a0, 262144
+EXE-NEXT: 051f 0000 0008        qc.e.li a0, 524288
+EXE-NEXT: 02018513      addi    a0, gp, 32
+EXE-NEXT: 051f 2000 0100        qc.e.li a0, 16785408
+
+## Link with Xqci enabled, GP disabled.
+RUN: %link %linkopts --relax-xqci --no-relax-gp -MapStyle txt -Map %t.3.map --verbose %t.o -o %t.3.out -T %p/Inputs/x.t 2>&1 | %filecheck %s --check-prefix=VERBOSE-NO-GP
+
+VERBOSE-NO-GP: RISCV_QC_E_LI_QC_LI : Deleting 2 bytes for symbol 'can_qc_li' in section .text+0x4 file {{.*}}.o
+VERBOSE-NO-GP: RISCV_QC_E_LI_QC_LI : Cannot relax 2 bytes for symbol 'cannot_qc_li' in section .text+0x4 file {{.*}}.o
+VERBOSE-NO-GP: RISCV_QC_E_LI_QC_LI : Cannot relax 2 bytes for symbol 'can_addi_gprel' in section .text+0xa file {{.*}}.o
+VERBOSE-NO-GP: RISCV_QC_E_LI_QC_LI : Cannot relax 2 bytes for symbol 'cannot_addi_gprel' in section .text+0x10 file {{.*}}.o
+
+RUN: %filecheck %s --input-file=%t.3.map --check-prefix=MAP-NO-GP
+
+MAP-NO-GP: # LinkStats Begin
+MAP-NO-GP: # RelaxationBytesDeleted : 2
+MAP-NO-GP: # RelaxationBytesMissed : 6
+MAP-NO-GP: # LinkStats End
+
+MAP-NO-GP: .text {{.+}}, Alignment: 0x2, Flags: SHF_ALLOC|SHF_EXECINSTR, Type: SHT_PROGBITS
+MAP-NO-GP: # RelaxationBytesDeleted : 2
+MAP-NO-GP: # RelaxationBytesMissed : 6
+MAP-NO-GP: .text {{.+}}.o     #SHT_PROGBITS,SHF_ALLOC|SHF_EXECINSTR,2
+
+RUN: %objdump --no-print-imm-hex -d -M no-aliases %t.3.out 2>&1 | %filecheck %s --check-prefix=EXE-NO-GP
+
+EXE-NO-GP: <main>:
+EXE-NO-GP-NEXT: 0000851b      qc.li   a0, 262144
+EXE-NO-GP-NEXT: 051f 0000 0008        qc.e.li a0, 524288
+EXE-NO-GP-NEXT: 051f 0020 0100        qc.e.li a0, 16777248
+EXE-NO-GP-NEXT: 051f 2000 0100        qc.e.li a0, 16785408
+
+## Link with GP relaxations enabled, Xqci disabled.
+RUN: %link %linkopts --no-relax-xqci -MapStyle txt -Map %t.4.map --verbose %t.o -o %t.4.out -T %p/Inputs/x.t 2>&1 | %filecheck %s --check-prefix=VERBOSE-NO-XQCI
+
+VERBOSE-NO-XQCI-NOT: Deleting {{.*}} bytes
+VERBOSE-NO-XQCI-NOT: relaxing instruction
+VERBOSE-NO-XQCI-NOT: Cannot relax {{.*}} bytes
+
+RUN: %filecheck %s --input-file=%t.4.map --check-prefix=MAP-NO-XQCI
+
+MAP-NO-XQCI-NOT: RelaxationBytesDeleted
+MAP-NO-XQCI-NOT: RelaxationBytesMissed
+
+RUN: %objdump --no-print-imm-hex -d -M no-aliases %t.4.out 2>&1 | %filecheck %s --check-prefix=EXE-NO-XQCI
+
+EXE-NO-XQCI: <main>:
+EXE-NO-XQCI-NEXT: 051f 0000 0004        qc.e.li a0, 262144
+EXE-NO-XQCI-NEXT: 051f 0000 0008        qc.e.li a0, 524288
+EXE-NO-XQCI-NEXT: 051f 0020 0100        qc.e.li a0, 16777248
+EXE-NO-XQCI-NEXT: 051f 2000 0100        qc.e.li a0, 16785408
