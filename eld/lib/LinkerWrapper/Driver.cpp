@@ -11,6 +11,7 @@
 #include "eld/Driver/GnuLdDriver.h"
 #include "eld/Driver/HexagonLinkDriver.h"
 #include "eld/Driver/RISCVLinkDriver.h"
+#include "eld/Driver/SRRArchLinkDriver.h"
 #include "eld/Driver/x86_64LinkDriver.h"
 #include "eld/PluginAPI/DiagnosticEntry.h"
 #include "eld/Support/Memory.h"
@@ -41,6 +42,7 @@ GnuLdDriver *Driver::getLinkerDriver() {
   case DriverFlavor::Hexagon:
   case DriverFlavor::ARM_AArch64:
   case DriverFlavor::RISCV32_RISCV64:
+  case DriverFlavor::SRRArch:
   case DriverFlavor::Unknown:
   case DriverFlavor::x86_64: {
     LinkDriver = GnuLdDriver::Create(Config, m_DriverFlavor,
@@ -80,6 +82,7 @@ DriverFlavor Driver::getDriverFlavorFromTarget(llvm::StringRef Target) const {
       .CaseLower("arm", DriverFlavor::ARM_AArch64)
       .CaseLower("aarch64", DriverFlavor::ARM_AArch64)
       .CaseLower("riscv", DriverFlavor::RISCV32_RISCV64)
+      .CaseLower("srrarch", DriverFlavor::SRRArch)
       .CaseLower("x86_64", DriverFlavor::x86_64)
       .Default(Invalid);
 }
@@ -163,6 +166,12 @@ Driver::getDriverFlavorFromLinkCommand(llvm::ArrayRef<const char *> Args) {
         InferredArch = ARMLinkDriver::getInferredArch(Emulation);
       } else
 #endif
+#if defined(ELD_ENABLE_TARGET_SRRARCH)
+          if (SRRArchLinkDriver::isValidEmulation(Emulation)) {
+        F = DriverFlavor::SRRArch;
+        InferredArch = SRRArchLinkDriver::getInferredArch(Emulation);
+      } else
+#endif
 #if defined(ELD_ENABLE_TARGET_X86)
           if (x86_64LinkDriver::isValidEmulation(Emulation)) {
         F = DriverFlavor::x86_64;
@@ -186,6 +195,10 @@ Driver::getDriverFlavorFromLinkCommand(llvm::ArrayRef<const char *> Args) {
     // here because RISCVLinkDriver will properly set the emulation.
     if (RISCVLinkDriver::isMyArch(MachineArch))
       F = DriverFlavor::RISCV32_RISCV64;
+#endif
+#if defined(ELD_ENABLE_TARGET_SRRARCH)
+    if (SRRArchLinkDriver::isMyArch(MachineArch))
+      F = DriverFlavor::SRRArch;
 #endif
 #if defined(ELD_ENABLE_TARGET_ARM) || defined(ELD_ENABLE_TARGET_AARCH64)
     if (ARMLinkDriver::isMyArch(MachineArch))
@@ -220,6 +233,8 @@ Driver::parseDriverFlavorFromProgramName(const char *argv0) {
                                                 std::string("aarch64")))
           .StartsWith("riscv", std::make_pair(DriverFlavor::RISCV32_RISCV64,
                                               std::string("riscv32")))
+          .StartsWith("srrarch", std::make_pair(DriverFlavor::SRRArch,
+                                                std::string("srrarch")))
           .StartsWith("x86_64", std::make_pair(DriverFlavor::x86_64,
                                                std::string("x86_64")))
           .Default(std::make_pair(DriverFlavor::Invalid, ""));

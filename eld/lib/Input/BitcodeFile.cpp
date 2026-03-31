@@ -75,6 +75,8 @@ uint16_t BitcodeFile::inferMachine(const llvm::Triple &t) const {
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     return llvm::ELF::EM_RISCV;
+  case llvm::Triple::srrarch:
+    return llvm::ELF::EM_SRRARCH;
   case llvm::Triple::x86_64:
     return llvm::ELF::EM_X86_64;
   default:

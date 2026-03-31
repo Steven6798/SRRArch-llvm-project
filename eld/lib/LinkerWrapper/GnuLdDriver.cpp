@@ -17,6 +17,9 @@
 #ifdef ELD_ENABLE_TARGET_RISCV
 #include "eld/Driver/RISCVLinkDriver.h"
 #endif
+#ifdef ELD_ENABLE_TARGET_SRRARCH
+#include "eld/Driver/SRRArchLinkDriver.h"
+#endif
 #ifdef ELD_ENABLE_TARGET_X86
 #include "eld/Driver/x86_64LinkDriver.h"
 #endif
@@ -96,6 +99,10 @@ GnuLdDriver *GnuLdDriver::Create(LinkerConfig &C, uint8_t Machine,
   case llvm::ELF::EM_RISCV:
     return RISCVLinkDriver::Create(C, is64bit);
 #endif
+#ifdef ELD_ENABLE_TARGET_SRRARCH
+  case llvm::ELF::EM_SRRARCH:
+    return SRRArchLinkDriver::Create(C, is64bit);
+#endif
 #ifdef ELD_ENABLE_TARGET_X86
   case llvm::ELF::EM_X86_64:
     return x86_64LinkDriver::Create(C, is64bit);
@@ -120,6 +127,10 @@ GnuLdDriver *GnuLdDriver::Create(LinkerConfig &C, DriverFlavor F,
 #ifdef ELD_ENABLE_TARGET_RISCV
   case DriverFlavor::RISCV32_RISCV64:
     return RISCVLinkDriver::Create(C, InferredArch);
+#endif
+#ifdef ELD_ENABLE_TARGET_SRRARCH
+  case DriverFlavor::SRRArch:
+    return SRRArchLinkDriver::Create(C, InferredArch);
 #endif
 #ifdef ELD_ENABLE_TARGET_X86
   case DriverFlavor::x86_64:
@@ -1962,6 +1973,8 @@ std::string GnuLdDriver::getDriverFlavorName() const {
     return "Hexagon";
   case DriverFlavor::RISCV32_RISCV64:
     return "RISCV32/RISCV64";
+  case DriverFlavor::SRRArch:
+    return "SRRArch";
   case DriverFlavor::x86_64:
     return "x86_64";
   case DriverFlavor::Unknown:
@@ -2163,6 +2176,29 @@ template bool GnuLdDriver::handleReproduce<OPT_RISCVLinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
     bool);
 template bool GnuLdDriver::processLTOOptions<OPT_RISCVLinkOptTable>(
+    llvm::lto::Config &, std::vector<std::string> &);
+#endif
+
+#if ELD_ENABLE_TARGET_SRRARCH
+// SRRArch -- force instantiate
+template bool GnuLdDriver::checkOptions<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &args) const;
+template bool GnuLdDriver::processOptions<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &args);
+template bool GnuLdDriver::processLLVMOptions<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &args) const;
+template bool GnuLdDriver::processTargetOptions<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &args);
+template bool GnuLdDriver::createInputActions<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions);
+template bool GnuLdDriver::overrideOptions<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &args);
+template bool GnuLdDriver::doLink<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions);
+template bool GnuLdDriver::handleReproduce<OPT_SRRArchLinkOptTable>(
+    llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
+    bool);
+template bool GnuLdDriver::processLTOOptions<OPT_SRRArchLinkOptTable>(
     llvm::lto::Config &, std::vector<std::string> &);
 #endif
 

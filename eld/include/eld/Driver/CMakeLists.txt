@@ -14,6 +14,10 @@ set(LLVM_TARGET_DEFINITIONS RISCVLinkerOptions.td)
 tablegen(LLVM RISCVLinkerOptions.inc -gen-opt-parser-defs)
 add_public_tablegen_target(RISCVDriverOptions)
 
+set(LLVM_TARGET_DEFINITIONS SRRArchLinkerOptions.td)
+tablegen(LLVM SRRArchLinkerOptions.inc -gen-opt-parser-defs)
+add_public_tablegen_target(SRRArchDriverOptions)
+
 set(LLVM_TARGET_DEFINITIONS x86_64LinkerOptions.td)
 tablegen(LLVM x86_64LinkerOptions.inc -gen-opt-parser-defs)
 add_public_tablegen_target(x86_64DriverOptions)
@@ -25,6 +29,7 @@ set(ELD_DRIVER_TABLEGEN_TARGETS
     HexagonDriverOptions
     ARMDriverOptions
     RISCVDriverOptions
+    SRRArchDriverOptions
     x86_64DriverOptions)
 set_property(GLOBAL PROPERTY ELD_DRIVER_TABLEGEN_TARGETS
              "${ELD_DRIVER_TABLEGEN_TARGETS}")

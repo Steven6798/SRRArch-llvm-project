@@ -1,0 +1,2 @@
+llvm_add_library(ELDSRRArchTargetInfo STATIC SRRArchTargetInfo.cpp)
+target_link_libraries(ELDSRRArchTargetInfo LLVMSRRArchAsmParser LLVMSRRArchCodeGen)

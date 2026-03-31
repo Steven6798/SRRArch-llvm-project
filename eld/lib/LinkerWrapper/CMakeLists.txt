@@ -16,6 +16,10 @@ if(ELD_ENABLE_TARGET_RISCV)
   set(DRIVER_SOURCES ${DRIVER_SOURCES} RISCVLinkDriver.cpp)
 endif()
 
+if(ELD_ENABLE_TARGET_SRRARCH)
+  set(DRIVER_SOURCES ${DRIVER_SOURCES} SRRArchLinkDriver.cpp)
+endif()
+
 if(ELD_ENABLE_TARGET_X86)
   set(DRIVER_SOURCES ${DRIVER_SOURCES} x86_64LinkDriver.cpp)
 endif()
@@ -44,6 +48,7 @@ set(PLUGIN_ELD_DEPENDENCIES
     HexagonDriverOptions
     intrinsics_gen
     RISCVDriverOptions
+    SRRArchDriverOptions
     x86_64DriverOptions
     LLVMSupport
     ELDConfig
