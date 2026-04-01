@@ -11,8 +11,6 @@
 #include <cstdint>
 #include <string>
 
-namespace eld {
-
 enum EncodingType {
   EncTy_None,
 };
@@ -29,6 +27,8 @@ typedef struct {
   uint32_t Size;
 } RelocationInfo;
 
-} // namespace eld
+extern "C" {
+extern const RelocationInfo SRRArchRelocs[];
+}
 
 #endif

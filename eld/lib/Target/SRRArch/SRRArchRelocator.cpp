@@ -8,6 +8,8 @@
 #include "SRRArchLDBackend.h"
 #include "SRRArchLLVMExtern.h"
 #include "SRRArchPLT.h"
+#include "SRRArchRelocationFunctions.h"
+#include "SRRArchRelocationInfo.h"
 #include "eld/Diagnostics/DiagnosticEngine.h"
 #include "eld/Input/ELFObjectFile.h"
 #include "eld/Support/MsgHandling.h"
@@ -16,7 +18,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
 
-namespace eld {
+using namespace eld;
 
 namespace {} // anonymous namespace
 
@@ -26,7 +28,16 @@ namespace {} // anonymous namespace
 SRRArchRelocator::SRRArchRelocator(SRRArchLDBackend &Backend,
                                    LinkerConfig &pConfig, Module &pModule)
     : Relocator(pConfig, pModule), m_Target(Backend) {
-  llvm_unreachable("SRRArchRelocator not implemented yet.");
+  // Mark force verify bit for specified relocations
+  if (m_Module.getPrinter()->verifyReloc() &&
+      config().options().verifyRelocList().size()) {
+    auto &list = config().options().verifyRelocList();
+    for (auto &i : SRRARCHRelocDesc) {
+      auto RelocInfo = SRRArchRelocs[i.type];
+      if (list.find(RelocInfo.Name) != list.end())
+        i.forceVerify = true;
+    }
+  }
 }
 
 SRRArchRelocator::~SRRArchRelocator() {}
@@ -66,8 +77,6 @@ void SRRArchRelocator::partialScanRelocation(Relocation &pReloc,
   llvm_unreachable("partialScanRelocation not implemented yet.");
 }
 
-namespace {
-
 //=========================================//
 // Relocation Verifier
 //=========================================//
@@ -75,7 +84,13 @@ namespace {
 //=========================================//
 // Each relocation function implementation //
 //=========================================//
+// R_SRRARCH_NONE
+Relocator::Result eld::none(Relocation &pReloc, SRRArchRelocator &pParent,
+                            RelocationDescription &pRelocDesc) {
+  return Relocator::OK;
+}
 
-} // anonymous namespace
-
-} // namespace eld
+Relocator::Result eld::unsupport(Relocation &pReloc, SRRArchRelocator &pParent,
+                                 RelocationDescription &pRelocDesc) {
+  return SRRArchRelocator::Unsupport;
+}
