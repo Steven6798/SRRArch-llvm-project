@@ -52,7 +52,10 @@ SRRArchLDBackend::SRRArchLDBackend(eld::Module &pModule, SRRArchInfo *pInfo)
 SRRArchLDBackend::~SRRArchLDBackend() {}
 
 bool SRRArchLDBackend::initRelocator() {
-  llvm_unreachable("initRelocator not implemented yet.");
+  if (nullptr == m_pRelocator)
+    m_pRelocator = make<SRRArchRelocator>(*this, config(), m_Module);
+
+  return true;
 }
 
 Relocator *SRRArchLDBackend::getRelocator() const {
@@ -189,7 +192,14 @@ void SRRArchLDBackend::addTargetSpecificSegments() {
 }
 
 void SRRArchLDBackend::setDefaultConfigs() {
-  llvm_unreachable("setDefaultConfigs not implemented yet.");
+  GNULDBackend::setDefaultConfigs();
+  if (config().options().threadsEnabled() &&
+      !config().isGlobalThreadingEnabled()) {
+    config().disableThreadOptions(
+        LinkerConfig::EnableThreadsOpt::ScanRelocations |
+        LinkerConfig::EnableThreadsOpt::ApplyRelocations |
+        LinkerConfig::EnableThreadsOpt::LinkerRelaxation);
+  }
 }
 
 eld::Expected<void>

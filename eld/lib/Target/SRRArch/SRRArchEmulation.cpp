@@ -16,7 +16,13 @@ using namespace llvm;
 namespace eld {
 
 static bool ELDEmulateSRRArchELF(LinkerScript &pScript, LinkerConfig &pConfig) {
-  llvm_unreachable("ELDEmulateSRRArchELF not implemented yet.");
+  pConfig.targets().setEndian(TargetOptions::Little);
+  pConfig.targets().setBitClass(64);
+
+  if (!ELDEmulateELF(pScript, pConfig))
+    return false;
+
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

@@ -156,6 +156,7 @@ private:
   eld::Expected<void> postProcessing(llvm::FileOutputBuffer &pOutput) override;
 
 private:
+  Relocator *m_pRelocator;
 };
 } // namespace eld
 
