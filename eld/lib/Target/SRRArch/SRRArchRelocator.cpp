@@ -69,7 +69,7 @@ uint32_t SRRArchRelocator::getNumRelocs() const {
 }
 
 Relocation::Size SRRArchRelocator::getSize(Relocation::Type pType) const {
-  llvm_unreachable("getSize not implemented yet.");
+  return SRRArchRelocs[pType].Size;
 }
 
 void SRRArchRelocator::partialScanRelocation(Relocation &pReloc,
@@ -81,13 +81,66 @@ void SRRArchRelocator::partialScanRelocation(Relocation &pReloc,
 // Relocation Verifier
 //=========================================//
 
+Relocator::Result ApplyReloc(Relocation &pReloc, uint32_t Result,
+                             const RelocationDescription &pRelocDesc,
+                             DiagnosticEngine *DiagEngine,
+                             const GeneralOptions &options,
+                             SRRArchRelocator &Parent) {
+  auto RelocInfo = SRRArchRelocs[pReloc.type()];
+
+  // Verify the Relocation.
+  Relocator::Result R = Relocator::OK;
+  // if (RelocInfo.IsSigned)
+  //   R = VerifyRelocAsNeededHelper<int32_t>(pReloc, Result, pRelocDesc,
+  //                                          DiagEngine, options, Parent);
+  // else
+  //   R = VerifyRelocAsNeededHelper<uint32_t>(pReloc, Result, pRelocDesc,
+  //                                           DiagEngine, options, Parent);
+  // if (R != Relocator::OK)
+  //   return R;
+
+  // Apply the relocation.
+  pReloc.target() = doRelocSRRArch(RelocInfo, pReloc.target(), Result);
+  return R;
+}
+
 //=========================================//
 // Each relocation function implementation //
 //=========================================//
-// R_SRRARCH_NONE
 Relocator::Result eld::none(Relocation &pReloc, SRRArchRelocator &pParent,
                             RelocationDescription &pRelocDesc) {
   return Relocator::OK;
+}
+
+Relocator::Result eld::relocAbs(Relocation &pReloc, SRRArchRelocator &pParent,
+                                RelocationDescription &pRelocDesc) {
+  DiagnosticEngine *DiagEngine = pParent.config().getDiagEngine();
+  ResolveInfo *rsym = pReloc.symInfo();
+  Relocator::Address S = pParent.getSymValue(&pReloc);
+  Relocator::DWord A = pReloc.addend();
+
+  const GeneralOptions &options = pParent.config().options();
+  // For absolute relocations, and If we are building a static executable and if
+  // the symbol is a weak undefined symbol, it should still use the undefined
+  // symbol value which is 0. For non absolute relocations, the call is set to a
+  // symbol defined by the linker which returns back to the caller.
+  if (rsym && rsym->isWeakUndef() &&
+      (pParent.config().codeGenType() == LinkerConfig::Exec)) {
+    S = 0;
+    return ApplyReloc(pReloc, S + A, pRelocDesc, DiagEngine, options, pParent);
+  }
+
+  // if the flag of target section is not ALLOC, we perform only static
+  // relocation.
+  if (!pReloc.targetRef()->getOutputELFSection()->isAlloc()) {
+    return ApplyReloc(pReloc, S + A, pRelocDesc, DiagEngine, options, pParent);
+  }
+
+  // FIXME PLT STUFF
+  // if (rsym && rsym->reserved() & Relocator::ReservePLT)
+  //   S = pParent.getTarget().findEntryInPLT(rsym)->getAddr(DiagEngine);
+
+  return ApplyReloc(pReloc, S + A, pRelocDesc, DiagEngine, options, pParent);
 }
 
 Relocator::Result eld::unsupport(Relocation &pReloc, SRRArchRelocator &pParent,

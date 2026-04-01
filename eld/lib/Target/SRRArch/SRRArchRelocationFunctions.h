@@ -18,6 +18,8 @@ struct RelocationDescription;
 
 SRRArchRelocator::Result none(Relocation &pReloc, SRRArchRelocator &pParent,
                               RelocationDescription &RelocDesc);
+SRRArchRelocator::Result relocAbs(Relocation &pEntry, SRRArchRelocator &pParent,
+                                  RelocationDescription &RelocDesc);
 SRRArchRelocator::Result unsupport(Relocation &pReloc,
                                    SRRArchRelocator &pParent,
                                    RelocationDescription &RelocDesc);
@@ -44,6 +46,12 @@ struct RelocationDescription {
 struct RelocationDescription SRRARCHRelocDesc[] = {
     {/*.func = */ none,
      /*.type = */ llvm::ELF::R_SRRARCH_NONE,
+     /*.forceVerify = */ false},
+    {/*.func = */ relocAbs,
+     /*.type = */ llvm::ELF::R_SRRARCH_32,
+     /*.forceVerify = */ false},
+    {/*.func = */ relocAbs,
+     /*.type = */ llvm::ELF::R_SRRARCH_64,
      /*.forceVerify = */ false}};
 
 #define SRRARCH_MAXRELOCS (llvm::ELF::R_SRRARCH_CALL + 1)

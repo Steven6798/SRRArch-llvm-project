@@ -19,7 +19,25 @@ const RelocationInfo SRRArchRelocs[] = {{/*.Name = */ "R_SRRARCH_NONE",
                                          /*.VerifyRange = */ false,
                                          /*.VerifyAlignment = */ false,
                                          /*.Signed = */ false,
-                                         /*.Size = */ 0}};
+                                         /*.Size = */ 0},
+                                        {/*.Name = */ "R_SRRARCH_32",
+                                         /*.Type = */ llvm::ELF::R_SRRARCH_32,
+                                         /*EncodingType = */ EncTy_32,
+                                         /*.Alignment = */ 4,
+                                         /*.shift = */ 0,
+                                         /*.VerifyRange = */ false,
+                                         /*.VerifyAlignment = */ false,
+                                         /*.Signed = */ false,
+                                         /*.Size = */ 32},
+                                        {/*.Name = */ "R_SRRARCH_64",
+                                         /*.Type = */ llvm::ELF::R_SRRARCH_64,
+                                         /*EncodingType = */ EncTy_64,
+                                         /*.Alignment = */ 8,
+                                         /*.shift = */ 0,
+                                         /*.VerifyRange = */ false,
+                                         /*.VerifyAlignment = */ false,
+                                         /*.Signed = */ false,
+                                         /*.Size = */ 64}};
 } // extern "C"
 
 #endif
