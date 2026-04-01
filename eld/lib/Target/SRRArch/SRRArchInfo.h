@@ -45,6 +45,9 @@ public:
   llvm::StringRef getOutputMCPU() const override;
 
   bool InitializeDefaultMappings(Module &pModule) override;
+
+private:
+  int32_t m_OutputFlag;
 };
 
 } // namespace eld

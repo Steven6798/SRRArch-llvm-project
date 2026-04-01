@@ -23,7 +23,10 @@ public:
   }
 
   void initializeAttributes(InputBuilder &pBuilder) override {
-    llvm_unreachable("initializeAttributes not implemented yet.");
+    pBuilder.makeBStatic();
+    // Warn on mismatch.
+    if (!m_Config.options().hasOptionWarnNoWarnMismatch())
+      m_Config.options().setWarnMismatch(true);
   }
 };
 

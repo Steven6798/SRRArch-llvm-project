@@ -16,7 +16,7 @@ std::string SRRArchInfo::flagString(uint64_t flag) const {
 }
 
 llvm::StringRef SRRArchInfo::getOutputMCPU() const {
-  llvm_unreachable("getOutputMCPU not implemented yet.");
+  return m_Config.targets().getTargetCPU();
 }
 
 //===----------------------------------------------------------------------===//
@@ -26,7 +26,15 @@ SRRArchInfo::SRRArchInfo(LinkerConfig &pConfig) : TargetInfo(pConfig) {}
 
 bool SRRArchInfo::checkFlags(uint64_t flag, const InputFile *pInputFile,
                              bool hasExecutableSections) {
-  llvm_unreachable("getOutputMCPU not implemented yet.");
+  // If flag is empty and no executable sections found in the ELF file
+  // skip checking for compatibility.
+  if (!flag && !hasExecutableSections)
+    return true;
+
+  if (!m_OutputFlag)
+    m_OutputFlag = flag;
+
+  return true;
 }
 
 uint8_t SRRArchInfo::OSABI() const { return llvm::ELF::ELFOSABI_NONE; }
