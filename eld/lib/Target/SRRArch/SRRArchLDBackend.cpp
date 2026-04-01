@@ -63,7 +63,8 @@ Relocator *SRRArchLDBackend::getRelocator() const {
 }
 
 Relocation::Type SRRArchLDBackend::getCopyRelType() const {
-  llvm_unreachable("getCopyRelType not implemented yet.");
+  // FIXME create a COPY relocation for SRRArch
+  return llvm::ELF::R_SRRARCH_NONE;
 }
 
 void SRRArchLDBackend::initDynamicSections(ELFObjectFile &InputFile) {
@@ -93,16 +94,23 @@ void SRRArchLDBackend::initPatchSections(ELFObjectFile &InputFile) {
 }
 
 void SRRArchLDBackend::initTargetSymbols() {
-  llvm_unreachable("initTargetSymbols not implemented yet.");
+  if (config().codeGenType() == LinkerConfig::Object)
+    return;
+
+  m_pEndOfImage =
+      m_Module.getIRBuilder()->addSymbol<IRBuilder::Force, IRBuilder::Resolve>(
+          m_Module.getInternalInput(Module::Script), "___end",
+          ResolveInfo::NoType, ResolveInfo::Define, ResolveInfo::Absolute,
+          0x0, // size
+          0x0, // value
+          FragmentRef::null());
+  if (m_pEndOfImage)
+    m_pEndOfImage->setShouldIgnore(false);
 }
 
-bool SRRArchLDBackend::initBRIslandFactory() {
-  llvm_unreachable("initBRIslandFactory not implemented yet.");
-}
+bool SRRArchLDBackend::initBRIslandFactory() { return true; }
 
-bool SRRArchLDBackend::initStubFactory() {
-  llvm_unreachable("initStubFactory not implemented yet.");
-}
+bool SRRArchLDBackend::initStubFactory() { return true; }
 
 bool SRRArchLDBackend::readSection(InputFile &pInput, ELFSection *S) {
   eld::LayoutInfo *layoutInfo = m_Module.getLayoutInfo();
@@ -118,16 +126,8 @@ bool SRRArchLDBackend::readSection(InputFile &pInput, ELFSection *S) {
   return GNULDBackend::readSection(pInput, S);
 }
 
-bool SRRArchLDBackend::DoesOverrideMerge(ELFSection *pSection) const {
-  llvm_unreachable("DoesOverrideMerge not implemented yet.");
-}
-
 ELFSection *SRRArchLDBackend::mergeSection(ELFSection *S) {
   llvm_unreachable("mergeSection not implemented yet.");
-}
-
-bool SRRArchLDBackend::addSymbolToOutput(ResolveInfo *Info) {
-  llvm_unreachable("addSymbolToOutput not implemented yet.");
 }
 
 bool SRRArchLDBackend::shouldIgnoreRelocSync(Relocation *pReloc) const {
@@ -159,16 +159,14 @@ bool SRRArchLDBackend::handleRelocation(ELFSection *pSection,
   return false;
 }
 
-bool SRRArchLDBackend::handlePendingRelocations(ELFSection *section) {
-  llvm_unreachable("handlePendingRelocations not implemented yet.");
-}
-
 Relocation::Type SRRArchLDBackend::getRemappedInternalRelocationType(
     Relocation::Type pType) const {
   llvm_unreachable("getRemappedInternalRelocationType not implemented yet.");
 }
 
 void SRRArchLDBackend::doPreLayout() {
+  if (config().isCodeStatic() && !config().options().forceDynamic())
+    return;
   llvm_unreachable("doPreLayout not implemented yet.");
 }
 
@@ -178,7 +176,14 @@ void SRRArchLDBackend::evaluateTargetSymbolsBeforeRelaxation() {
 }
 
 bool SRRArchLDBackend::finalizeScanRelocations() {
-  llvm_unreachable("finalizeScanRelocations not implemented yet.");
+  // FIXME Implement GOT and PLT stuff
+  // Fragment *frag = nullptr;
+  // if (auto *GOTPLT = getGOTPLT())
+  //   if (GOTPLT->hasSectionData())
+  //     frag = *GOTPLT->getFragmentList().begin();
+  // if (frag)
+  //   defineGOTSymbol(*frag);
+  return true;
 }
 
 uint64_t

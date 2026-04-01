@@ -80,9 +80,6 @@ public:
                         Relocation::Address pAddend = 0,
                         bool pLastPass = false) override;
 
-  // Handle the relocations that handleRelocation() could not process.
-  bool handlePendingRelocations(ELFSection *S) override;
-
   virtual bool readSection(InputFile &pInput, ELFSection *S) override;
 
   bool shouldIgnoreRelocSync(Relocation *pReloc) const override;
@@ -91,9 +88,6 @@ public:
       getRemappedInternalRelocationType(Relocation::Type) const override;
 
   Relocation::Type getCopyRelType() const override;
-
-  // ---  GOT Support ------
-  bool addSymbolToOutput(ResolveInfo *pInfo) override;
 
   uint64_t getValueForDiscardedRelocations(const Relocation *R) const override;
 
@@ -147,8 +141,6 @@ private:
 
   bool finalizeScanRelocations() override;
 
-  bool DoesOverrideMerge(ELFSection *pSection) const override;
-
   ELFSection *mergeSection(ELFSection *pSection) override;
 
   /// postProcessing - Backend can do any needed modification in the final stage
@@ -156,6 +148,7 @@ private:
 
 private:
   Relocator *m_pRelocator;
+  LDSymbol *m_pEndOfImage;
 };
 } // namespace eld
 
