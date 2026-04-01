@@ -11,9 +11,7 @@
 #include <cstdint>
 #include <string>
 
-enum EncodingType {
-  EncTy_None,
-};
+enum EncodingType { EncTy_None, EncTy_8, EncTy_16, EncTy_32, EncTy_64 };
 
 typedef struct {
   const char *Name;
@@ -28,6 +26,8 @@ typedef struct {
 } RelocationInfo;
 
 extern "C" {
+uint64_t doRelocSRRArch(const RelocationInfo &RelocInfo, uint64_t Instruction,
+                        uint64_t Value);
 extern const RelocationInfo SRRArchRelocs[];
 }
 
