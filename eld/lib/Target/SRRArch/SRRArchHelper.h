@@ -8,4 +8,23 @@
 #include "llvm/Support/LEB128.h"
 #include <cassert>
 
-namespace {} // namespace
+namespace {
+// Apply Encoding depending on word sizes
+
+template <typename T> T encode8(T Result) {
+  Result = Result & 0xFF;
+  return Result;
+}
+template <typename T> T encode16(T Result) {
+  Result = Result & 0xFFFF;
+  return Result;
+}
+template <typename T> T encode32(T Result) {
+  Result = Result & 0xFFFFFFFF;
+  return Result;
+}
+template <typename T> T encode64(T Result) {
+  Result = Result & 0xFFFFFFFFFFFFFFFF;
+  return Result;
+}
+} // namespace
