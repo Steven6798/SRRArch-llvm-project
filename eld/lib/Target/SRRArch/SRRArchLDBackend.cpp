@@ -58,7 +58,8 @@ bool SRRArchLDBackend::initRelocator() {
 }
 
 Relocator *SRRArchLDBackend::getRelocator() const {
-  llvm_unreachable("getRelocator not implemented yet.");
+  assert(nullptr != m_pRelocator);
+  return m_pRelocator;
 }
 
 Relocation::Type SRRArchLDBackend::getCopyRelType() const {
@@ -66,12 +67,26 @@ Relocation::Type SRRArchLDBackend::getCopyRelType() const {
 }
 
 void SRRArchLDBackend::initDynamicSections(ELFObjectFile &InputFile) {
-  llvm_unreachable("initDynamicSections not implemented yet.");
+  InputFile.setDynamicSections(
+      *m_Module.createInternalSection(
+          InputFile, LDFileFormat::Internal, ".got", llvm::ELF::SHT_PROGBITS,
+          llvm::ELF::SHF_ALLOC | llvm::ELF::SHF_WRITE, 8),
+      *m_Module.createInternalSection(
+          InputFile, LDFileFormat::Internal, ".got.plt",
+          llvm::ELF::SHT_PROGBITS, llvm::ELF::SHF_ALLOC | llvm::ELF::SHF_WRITE,
+          8),
+      *m_Module.createInternalSection(
+          InputFile, LDFileFormat::Internal, ".plt", llvm::ELF::SHT_PROGBITS,
+          llvm::ELF::SHF_ALLOC | llvm::ELF::SHF_EXECINSTR, 8),
+      *m_Module.createInternalSection(
+          InputFile, LDFileFormat::DynamicRelocation, ".rela.dyn",
+          llvm::ELF::SHT_RELA, llvm::ELF::SHF_ALLOC, 8),
+      *m_Module.createInternalSection(
+          InputFile, LDFileFormat::DynamicRelocation, ".rela.plt",
+          llvm::ELF::SHT_RELA, llvm::ELF::SHF_ALLOC, 8));
 }
 
-void SRRArchLDBackend::initTargetSections(ObjectBuilder &pBuilder) {
-  llvm_unreachable("initTargetSections not implemented yet.");
-}
+void SRRArchLDBackend::initTargetSections(ObjectBuilder &pBuilder) {}
 
 void SRRArchLDBackend::initPatchSections(ELFObjectFile &InputFile) {
   llvm_unreachable("initPatchSections not implemented yet.");
@@ -90,7 +105,17 @@ bool SRRArchLDBackend::initStubFactory() {
 }
 
 bool SRRArchLDBackend::readSection(InputFile &pInput, ELFSection *S) {
-  llvm_unreachable("readSection not implemented yet.");
+  eld::LayoutInfo *layoutInfo = m_Module.getLayoutInfo();
+  if (S->isCode()) {
+    const char *Buf = pInput.getCopyForWrite(S->offset(), S->size());
+    eld::RegionFragmentEx *F =
+        make<RegionFragmentEx>(Buf, S->size(), S, S->getAddrAlign());
+    S->addFragment(F);
+    if (layoutInfo)
+      layoutInfo->recordFragment(&pInput, S, F);
+    return true;
+  }
+  return GNULDBackend::readSection(pInput, S);
 }
 
 bool SRRArchLDBackend::DoesOverrideMerge(ELFSection *pSection) const {
@@ -131,7 +156,7 @@ bool SRRArchLDBackend::handleRelocation(ELFSection *pSection,
                                         uint32_t pOffset,
                                         Relocation::Address pAddend,
                                         bool pLastVisit) {
-  llvm_unreachable("handleRelocation not implemented yet.");
+  return false;
 }
 
 bool SRRArchLDBackend::handlePendingRelocations(ELFSection *section) {
