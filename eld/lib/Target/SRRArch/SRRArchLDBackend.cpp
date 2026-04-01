@@ -11,7 +11,6 @@
 #include "SRRArchGOT.h"
 #include "SRRArchLLVMExtern.h"
 #include "SRRArchPLT.h"
-#include "SRRArchRelaxationStats.h"
 #include "SRRArchRelocationHelper.h"
 #include "SRRArchRelocationInternal.h"
 #include "SRRArchRelocator.h"

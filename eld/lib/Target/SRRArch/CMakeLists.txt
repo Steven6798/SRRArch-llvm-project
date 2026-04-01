@@ -9,9 +9,7 @@ llvm_add_library(
   SRRArchPLT.cpp
   SRRArchLDBackend.cpp
   SRRArchRelocationCompute.cpp
-  SRRArchRelocationInfo.cpp
-  SRRArchRelocator.cpp
-  SRRArchRelaxationStats.cpp)
+  SRRArchRelocator.cpp)
 
 add_subdirectory(TargetInfo)
 

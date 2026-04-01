@@ -24,7 +24,6 @@ class SRRArchInfo;
 class SRRArchAttributeFragment;
 class SRRArchELFDynamic;
 class SRRArchPLT;
-class SRRArchRelaxationStats;
 
 //===----------------------------------------------------------------------===//
 /// SRRArchLDBackend - linker backend of SRRArch target of GNU ELF format
