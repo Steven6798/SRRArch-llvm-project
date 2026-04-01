@@ -116,9 +116,7 @@ public:
     llvm_unreachable("GOTEntriesCount not implemented yet.");
   }
 
-  void doCreateProgramHdrs() override;
-
-  int numReservedSegments() const override;
+  void doCreateProgramHdrs() override { return; }
 
   void addTargetSpecificSegments() override;
 

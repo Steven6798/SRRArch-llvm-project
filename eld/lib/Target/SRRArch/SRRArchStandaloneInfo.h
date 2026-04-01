@@ -19,7 +19,10 @@ public:
 
   uint64_t startAddr(bool linkerScriptHasSectionsCmd, bool isDynExec,
                      bool loadPhdr) const override {
-    llvm_unreachable("startAddr not implemented yet.");
+    if (m_Config.codeGenType() == LinkerConfig::Exec) {
+      return 0x400000;
+    }
+    return 0;
   }
 
   void initializeAttributes(InputBuilder &pBuilder) override {

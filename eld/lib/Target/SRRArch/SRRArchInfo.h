@@ -35,12 +35,10 @@ public:
 
   bool needEhdr(Module &pModule, bool linkerScriptHasSectionsCmd,
                 bool isPhdr) override {
-    llvm_unreachable("needEhdr not implemented yet.");
+    return false & isPhdr;
   }
 
-  bool processNoteGNUSTACK() override {
-    llvm_unreachable("processNoteGNUSTACK not implemented yet.");
-  }
+  bool processNoteGNUSTACK() override { return false; }
 
   llvm::StringRef getOutputMCPU() const override;
 

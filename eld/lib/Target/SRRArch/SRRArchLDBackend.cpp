@@ -206,16 +206,6 @@ SRRArchLDBackend::getTargetSectionOrder(const ELFSection &pSectHdr) const {
   llvm_unreachable("getTargetSectionOrder not implemented yet.");
 }
 
-/// doCreateProgramHdrs - backend can implement this function to create the
-/// target-dependent segments
-void SRRArchLDBackend::doCreateProgramHdrs() {
-  llvm_unreachable("doCreateProgramHdrs not implemented yet.");
-}
-
-int SRRArchLDBackend::numReservedSegments() const {
-  llvm_unreachable("numReservedSegments not implemented yet.");
-}
-
 void SRRArchLDBackend::addTargetSpecificSegments() {
   llvm_unreachable("addTargetSpecificSegments not implemented yet.");
 }
