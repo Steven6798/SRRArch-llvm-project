@@ -48,7 +48,7 @@ public:
   Size getSize(Relocation::Type pType) const override;
 
 private:
-
+  bool isRelocSupported(Relocation &pReloc) const;
 
 public:
   SRRArchLDBackend &m_Target;

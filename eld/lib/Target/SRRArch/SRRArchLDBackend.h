@@ -80,8 +80,6 @@ public:
 
   virtual bool readSection(InputFile &pInput, ELFSection *S) override;
 
-  bool shouldIgnoreRelocSync(Relocation *pReloc) const override;
-
   Relocation::Type
       getRemappedInternalRelocationType(Relocation::Type) const override;
 

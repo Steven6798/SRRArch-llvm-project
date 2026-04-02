@@ -130,10 +130,6 @@ ELFSection *SRRArchLDBackend::mergeSection(ELFSection *S) {
   llvm_unreachable("mergeSection not implemented yet.");
 }
 
-bool SRRArchLDBackend::shouldIgnoreRelocSync(Relocation *pReloc) const {
-  llvm_unreachable("shouldIgnoreRelocSync not implemented yet.");
-}
-
 void SRRArchLDBackend::mayBeRelax(int relaxation_pass, bool &pFinished) {
   // TODO: Implement.
   pFinished = true;

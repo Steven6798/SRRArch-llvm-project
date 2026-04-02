@@ -45,7 +45,29 @@ SRRArchRelocator::~SRRArchRelocator() {}
 namespace {} // namespace
 
 Relocator::Result SRRArchRelocator::applyRelocation(Relocation &pRelocation) {
-  llvm_unreachable("applyRelocation not implemented yet.");
+  Relocation::Type type = pRelocation.type();
+
+  ResolveInfo *symInfo = pRelocation.symInfo();
+
+  if (type > SRRARCH_MAXRELOCS)
+    return Relocator::Unknown;
+
+  if (symInfo) {
+    LDSymbol *outSymbol = symInfo->outSymbol();
+    if (outSymbol && outSymbol->hasFragRef()) {
+      ELFSection *S = outSymbol->fragRef()->frag()->getOwningSection();
+      if (S->isDiscard() ||
+          (S->getOutputSection() && S->getOutputSection()->isDiscard())) {
+        std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+        issueUndefRef(pRelocation, *S->getInputFile(), S);
+        return Relocator::OK;
+      }
+    }
+  }
+
+  // apply the relocation
+  return SRRARCHRelocDesc[type].func(pRelocation, *this,
+                                     SRRARCHRelocDesc[type]);
 }
 
 const char *SRRArchRelocator::getName(Relocation::Type pType) const {
@@ -56,12 +78,75 @@ SRRArchLDBackend &SRRArchRelocator::getTarget() { return m_Target; }
 
 const SRRArchLDBackend &SRRArchRelocator::getTarget() const { return m_Target; }
 
+bool SRRArchRelocator::isRelocSupported(Relocation &pReloc) const {
+  return pReloc.type() < SRRARCH_MAXRELOCS;
+}
+
 void SRRArchRelocator::scanRelocation(Relocation &pReloc,
                                       eld::IRBuilder &pLinker,
                                       ELFSection &pSection,
                                       InputFile &pInputFile,
                                       CopyRelocs &CopyRelocs) {
-  llvm_unreachable("scanRelocation not implemented yet.");
+  if (LinkerConfig::Object == config().codeGenType())
+    return;
+
+  if (!isRelocSupported(pReloc)) {
+    config().raise(Diag::unsupported_reloc)
+        << pReloc.type() << pSection.getDecoratedName(config().options())
+        << pInputFile.getInput()->decoratedPath();
+    return;
+  }
+
+  // TODO: Implement
+  // If we are generating a shared library check for invalid relocations
+  // if (isInvalidReloc(pReloc)) {
+  //   std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+  //   config().raise(Diag::non_pic_relocation)
+  //       << getName(pReloc.type()) << pReloc.symInfo()->name()
+  //       << pReloc.getSourcePath(config().options());
+  //   m_Target.getModule().setFailure(true);
+  //   return;
+  // }
+
+  // rsym - The relocation target symbol
+  ResolveInfo *rsym = pReloc.symInfo();
+  assert(nullptr != rsym &&
+         "ResolveInfo of relocation not set while scanRelocation");
+
+  // Check if we are tracing relocations.
+  if (m_Module.getPrinter()->traceReloc()) {
+    std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    std::string relocName = getName(pReloc.type());
+    if (config().options().traceReloc(relocName))
+      config().raise(Diag::reloc_trace)
+          << relocName << pReloc.symInfo()->name()
+          << pInputFile.getInput()->decoratedPath();
+  }
+
+  // check if we should issue undefined reference for the relocation target
+  // symbol
+  {
+    if (rsym->isUndef() || rsym->isBitCode()) {
+      std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+      if (m_Target.canIssueUndef(rsym)) {
+        if (rsym->visibility() != ResolveInfo::Default)
+          issueInvisibleRef(pReloc, pInputFile);
+        issueUndefRef(pReloc, pInputFile, &pSection);
+      }
+    }
+  }
+  ELFSection *section = pSection.getLink()
+                            ? pSection.getLink()
+                            : pReloc.targetRef()->frag()->getOwningSection();
+
+  if (!section->isAlloc())
+    return;
+
+  // TODO: Implement
+  // if (rsym->isLocal()) // rsym is local
+  //   scanLocalReloc(pInputFile, pReloc, pLinker, *section);
+  // else // rsym is external
+  //   scanGlobalReloc(pInputFile, pReloc, pLinker, *section, CopyRelocs);
 }
 
 uint32_t SRRArchRelocator::getNumRelocs() const {
