@@ -20,22 +20,6 @@ uint64_t doRelocHelper(const RelocationInfo &RelocInfo, uint64_t Instruction,
                        T Value) {
   // If the relocation needs the value to be shifted, then lets shift.
   T ValueAfterShift = Value << RelocInfo.Shift;
-  switch (RelocInfo.EncType) {
-  case EncTy_64:
-    ValueAfterShift = encode64(ValueAfterShift);
-    break;
-  case EncTy_32:
-    ValueAfterShift = encode32(ValueAfterShift);
-    break;
-  case EncTy_16:
-    ValueAfterShift = encode16(ValueAfterShift);
-    break;
-  case EncTy_8:
-    ValueAfterShift = encode8(ValueAfterShift);
-    break;
-  default:
-    break;
-  }
   return ValueAfterShift | Instruction;
 }
 } // anonymous namespace

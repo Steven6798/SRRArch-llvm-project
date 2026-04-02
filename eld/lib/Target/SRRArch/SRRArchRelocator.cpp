@@ -166,7 +166,7 @@ void SRRArchRelocator::partialScanRelocation(Relocation &pReloc,
 // Relocation Verifier
 //=========================================//
 
-Relocator::Result ApplyReloc(Relocation &pReloc, uint32_t Result,
+Relocator::Result ApplyReloc(Relocation &pReloc, uint64_t Result,
                              const RelocationDescription &pRelocDesc,
                              DiagnosticEngine *DiagEngine,
                              const GeneralOptions &options,
@@ -176,10 +176,10 @@ Relocator::Result ApplyReloc(Relocation &pReloc, uint32_t Result,
   // Verify the Relocation.
   Relocator::Result R = Relocator::OK;
   // if (RelocInfo.IsSigned)
-  //   R = VerifyRelocAsNeededHelper<int32_t>(pReloc, Result, pRelocDesc,
+  //   R = VerifyRelocAsNeededHelper<int64_t>(pReloc, Result, pRelocDesc,
   //                                          DiagEngine, options, Parent);
   // else
-  //   R = VerifyRelocAsNeededHelper<uint32_t>(pReloc, Result, pRelocDesc,
+  //   R = VerifyRelocAsNeededHelper<uint64_t>(pReloc, Result, pRelocDesc,
   //                                           DiagEngine, options, Parent);
   // if (R != Relocator::OK)
   //   return R;
