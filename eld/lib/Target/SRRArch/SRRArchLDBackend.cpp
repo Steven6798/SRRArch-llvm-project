@@ -135,12 +135,33 @@ bool SRRArchLDBackend::shouldIgnoreRelocSync(Relocation *pReloc) const {
 }
 
 void SRRArchLDBackend::mayBeRelax(int relaxation_pass, bool &pFinished) {
-  llvm_unreachable("mayBeRelax not implemented yet.");
+  // TODO: Implement.
+  pFinished = true;
 }
 
 /// finalizeSymbol - finalize the symbol value
 bool SRRArchLDBackend::finalizeTargetSymbols() {
-  llvm_unreachable("finalizeTargetSymbols not implemented yet.");
+  if (config().codeGenType() == LinkerConfig::Object)
+    return true;
+
+  // Get the pointer to the real end of the image.
+  if (m_pEndOfImage && !m_pEndOfImage->scriptDefined()) {
+    uint64_t imageEnd = 0;
+    for (auto &seg : elfSegmentTable()) {
+      if (seg->type() != llvm::ELF::PT_LOAD)
+        continue;
+      uint64_t segSz = seg->paddr() + seg->memsz();
+      if (imageEnd < segSz)
+        imageEnd = segSz;
+    }
+    alignAddress(imageEnd, 8);
+    m_pEndOfImage->setValue(imageEnd + 1);
+  }
+
+  if (m_Module.getScript().linkerScriptHasSectionsCommand())
+    return true;
+
+  return true;
 }
 
 void SRRArchLDBackend::initializeAttributes() {
@@ -168,11 +189,6 @@ void SRRArchLDBackend::doPreLayout() {
   if (config().isCodeStatic() && !config().options().forceDynamic())
     return;
   llvm_unreachable("doPreLayout not implemented yet.");
-}
-
-void SRRArchLDBackend::evaluateTargetSymbolsBeforeRelaxation() {
-  llvm_unreachable(
-      "evaluateTargetSymbolsBeforeRelaxation not implemented yet.");
 }
 
 bool SRRArchLDBackend::finalizeScanRelocations() {
@@ -219,11 +235,6 @@ void SRRArchLDBackend::setDefaultConfigs() {
         LinkerConfig::EnableThreadsOpt::ApplyRelocations |
         LinkerConfig::EnableThreadsOpt::LinkerRelaxation);
   }
-}
-
-eld::Expected<void>
-SRRArchLDBackend::postProcessing(llvm::FileOutputBuffer &pOutput) {
-  llvm_unreachable("postProcessing not implemented yet.");
 }
 
 namespace eld {

@@ -22,9 +22,7 @@ public:
   std::string getMachineStr() const override { return "SRRArch"; }
 
   /// flags - the value of ElfXX_Ehdr::e_flags
-  uint64_t flags() const override {
-    llvm_unreachable("flags not implemented yet.");
-  }
+  uint64_t flags() const override { return m_OutputFlag; }
 
   uint8_t OSABI() const override;
 
@@ -45,7 +43,7 @@ public:
   bool InitializeDefaultMappings(Module &pModule) override;
 
 private:
-  int32_t m_OutputFlag;
+  uint64_t m_OutputFlag = 0;
 };
 
 } // namespace eld

@@ -64,8 +64,6 @@ public:
 
   ELFDynamic *dynamic() override;
 
-  void evaluateTargetSymbolsBeforeRelaxation() override;
-
   Stub *getBranchIslandStub(Relocation *pReloc,
                             int64_t pTargetValue) const override {
     return nullptr;
@@ -140,9 +138,6 @@ private:
   bool finalizeScanRelocations() override;
 
   ELFSection *mergeSection(ELFSection *pSection) override;
-
-  /// postProcessing - Backend can do any needed modification in the final stage
-  eld::Expected<void> postProcessing(llvm::FileOutputBuffer &pOutput) override;
 
 private:
   Relocator *m_pRelocator;
