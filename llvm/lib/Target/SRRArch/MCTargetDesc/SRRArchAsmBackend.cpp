@@ -105,7 +105,8 @@ MCFixupKindInfo SRRArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"FIXUP_SRRARCH_32",      0,    32,  0},
       {"FIXUP_SRRARCH_64",      0,    64,  0},
       {"FIXUP_SRRARCH_GV",      13,   32,  0},
-      {"FIXUP_SRRARCH_BRANCH",  13,   32,  0},
+      {"FIXUP_SRRARCH_BR",      8,    32,  0},
+      {"FIXUP_SRRARCH_BRCOND",  13,   32,  0},
       {"FIXUP_SRRARCH_CALL",    8,    32,  0}};
   // clang-format on
 

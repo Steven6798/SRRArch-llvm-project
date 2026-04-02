@@ -108,8 +108,11 @@ unsigned SRRArchMCCodeEmitter::getBranchTargetOpValue(
   if (MCOp.isReg() || MCOp.isImm())
     return getMachineOpValue(Inst, MCOp, Fixups, SubtargetInfo);
 
-  Fixups.push_back(
-      MCFixup::create(0, MCOp.getExpr(), SRRArch::FIXUP_SRRARCH_BRANCH));
+  unsigned kind = SRRArch::FIXUP_SRRARCH_BR;
+  if (Inst.getOpcode() == SRRArch::BRCOND)
+    kind = SRRArch::FIXUP_SRRARCH_BRCOND;
+
+  Fixups.push_back(MCFixup::create(0, MCOp.getExpr(), kind));
 
   return 0;
 }

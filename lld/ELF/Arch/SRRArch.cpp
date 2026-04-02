@@ -66,19 +66,17 @@ void SRRArch::relocate(uint8_t *loc, const Relocation &rel,
     break;
   case R_SRRARCH_GV: {
     checkUInt(ctx, loc, val, 32, rel);
-
     writeGVBLAddress(loc, val);
     break;
   }
-  case R_SRRARCH_BRANCH: {
+  case R_SRRARCH_BR: {
     checkUInt(ctx, loc, val, 32, rel);
-
-    // unconditional branch
-    if (loc[0] == 0x29) {
-      write32le(loc + 1, val);
-    } else {
-      writeGVBLAddress(loc, val);
-    }
+    write32le(loc + 1, val);
+    break;
+  }
+  case R_SRRARCH_BRCOND: {
+    checkUInt(ctx, loc, val, 32, rel);
+    writeGVBLAddress(loc, val);
     break;
   }
   case R_SRRARCH_CALL: {
@@ -97,7 +95,8 @@ RelExpr SRRArch::getRelExpr(RelType type, const Symbol &s,
   case R_SRRARCH_32:
   case R_SRRARCH_64:
   case R_SRRARCH_GV:
-  case R_SRRARCH_BRANCH:
+  case R_SRRARCH_BR:
+  case R_SRRARCH_BRCOND:
   case R_SRRARCH_CALL:
     return R_ABS;
   default:

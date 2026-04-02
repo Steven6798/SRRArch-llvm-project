@@ -11,7 +11,9 @@ ELF_RELOC(R_SRRARCH_32,          1)
 ELF_RELOC(R_SRRARCH_64,          2)
 // 32-bit global targets
 ELF_RELOC(R_SRRARCH_GV,          3)
-// 32-bit branch targets
-ELF_RELOC(R_SRRARCH_BRANCH,      4)
+// 32-bit unconditional branch targets
+ELF_RELOC(R_SRRARCH_BR,          4)
+// 32-bit conditional branch targets
+ELF_RELOC(R_SRRARCH_BRCOND,      5)
 // 32-bit call target
-ELF_RELOC(R_SRRARCH_CALL,        5)
+ELF_RELOC(R_SRRARCH_CALL,        6)

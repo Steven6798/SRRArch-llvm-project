@@ -28,7 +28,8 @@ enum Fixups {
   FIXUP_SRRARCH_32,     // general 32-bit relocation
   FIXUP_SRRARCH_64,     // general 64-bit relocation
   FIXUP_SRRARCH_GV,     // 32-bit global targets
-  FIXUP_SRRARCH_BRANCH, // 32-bit branch targets
+  FIXUP_SRRARCH_BR,     // 32-bit unconditional branch targets
+  FIXUP_SRRARCH_BRCOND, // 32-bit conditional branch targets
   FIXUP_SRRARCH_CALL,   // 32-bit relocation for function calls
 
   // Marker
