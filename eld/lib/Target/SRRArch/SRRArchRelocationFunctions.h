@@ -52,6 +52,15 @@ struct RelocationDescription SRRARCHRelocDesc[] = {
      /*.forceVerify = */ false},
     {/*.func = */ relocAbs,
      /*.type = */ llvm::ELF::R_SRRARCH_64,
+     /*.forceVerify = */ false},
+    {/*.func = */ none,
+     /*.type = */ llvm::ELF::R_SRRARCH_GV,
+     /*.forceVerify = */ false},
+    {/*.func = */ none,
+     /*.type = */ llvm::ELF::R_SRRARCH_BRANCH,
+     /*.forceVerify = */ false},
+    {/*.func = */ relocAbs,
+     /*.type = */ llvm::ELF::R_SRRARCH_CALL,
      /*.forceVerify = */ false}};
 
 #define SRRARCH_MAXRELOCS (llvm::ELF::R_SRRARCH_CALL + 1)

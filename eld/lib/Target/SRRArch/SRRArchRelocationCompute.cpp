@@ -13,47 +13,30 @@
 #include "llvm/Support/MathExtras.h"
 
 namespace {
-
-uint64_t clearImmediateBits(uint64_t Instr, EncodingType Type) {
-  // This only has to clear bits in the bytes that are covered by
-  // the relocation's Size.
-  switch (Type) {
-  case EncTy_8:
-    return Instr & 0x00;
-  case EncTy_16:
-    return Instr & 0x0000;
-  case EncTy_32:
-    return Instr & 0x00000000;
-  case EncTy_64:
-    return Instr & 0x00000000'00000000;
-  case EncTy_None:
-    return Instr;
-  }
-}
-
 // The Relocation helper function that computes the Instruction bits with the
 // relocation applied.
 template <typename T>
 uint64_t doRelocHelper(const RelocationInfo &RelocInfo, uint64_t Instruction,
                        T Value) {
-  Instruction = clearImmediateBits(Instruction, RelocInfo.EncType);
+  // If the relocation needs the value to be shifted, then lets shift.
+  T ValueAfterShift = Value << RelocInfo.Shift;
   switch (RelocInfo.EncType) {
   case EncTy_64:
-    Value = encode64(Value);
+    ValueAfterShift = encode64(ValueAfterShift);
     break;
   case EncTy_32:
-    Value = encode32(Value);
+    ValueAfterShift = encode32(ValueAfterShift);
     break;
   case EncTy_16:
-    Value = encode16(Value);
+    ValueAfterShift = encode16(ValueAfterShift);
     break;
   case EncTy_8:
-    Value = encode8(Value);
+    ValueAfterShift = encode8(ValueAfterShift);
     break;
   default:
     break;
   }
-  return Value | Instruction;
+  return ValueAfterShift | Instruction;
 }
 } // anonymous namespace
 
