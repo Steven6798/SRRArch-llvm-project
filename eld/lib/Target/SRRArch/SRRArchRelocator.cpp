@@ -131,7 +131,11 @@ void SRRArchRelocator::scanRelocation(Relocation &pReloc,
       if (m_Target.canIssueUndef(rsym)) {
         if (rsym->visibility() != ResolveInfo::Default)
           issueInvisibleRef(pReloc, pInputFile);
-        issueUndefRef(pReloc, pInputFile, &pSection);
+
+        // Allow printf to be undefined until it can be compiled natively.
+        std::string reloc_sym(pReloc.symInfo()->name());
+        if (reloc_sym != "printf")
+          issueUndefRef(pReloc, pInputFile, &pSection);
       }
     }
   }
