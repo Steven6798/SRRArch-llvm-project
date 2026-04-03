@@ -68,7 +68,7 @@ def BrTarget   : Operand<OtherVT> {
   let DecoderMethod = "decodeBranch";
 }
 
-def ADDRri : ComplexPattern<i64, 2, "selectAddrRi", [tframeindex], []>;
+def ADDRri : ComplexPattern<i64, 2, "selectAddrRi", [frameindex], []>;
 
 def MEMri : Operand<i64> {
   let DecoderMethod = "decodeRiMemoryValue";

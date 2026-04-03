@@ -35,7 +35,6 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
 
   setStackPointerRegisterToSaveRestore(SRRArch::R1);
 
-  setOperationAction(ISD::FrameIndex, MVT::i64, Custom);
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
   setOperationAction(ISD::BR_CC, MVT::i64, Expand);
@@ -66,8 +65,6 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
 SDValue SRRArchTargetLowering::LowerOperation(SDValue Op,
                                               SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
-  case ISD::FrameIndex:
-    return LowerFrameIndex(Op, DAG);
   case ISD::GlobalAddress:
     return LowerGlobalAddress(Op, DAG);
   default:
@@ -203,13 +200,11 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // bool &IsTailCall = CLI.IsTailCall;
   CallingConv::ID CallConv = CLI.CallConv;
   bool IsVarArg = CLI.IsVarArg;
-  GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee);
 
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState ArgCCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
                     *DAG.getContext());
-  // GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee);
   // MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
 
   if (IsVarArg) {
@@ -300,7 +295,7 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     InGlue = Chain.getValue(1);
   }
 
-  if (G) {
+  if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
     Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL,
                                         getPointerTy(DAG.getDataLayout()), 0);
   } else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
@@ -400,12 +395,6 @@ SRRArchTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
 //===----------------------------------------------------------------------===//
 //                      Custom Lowerings
 //===----------------------------------------------------------------------===//
-
-SDValue SRRArchTargetLowering::LowerFrameIndex(SDValue Op,
-                                               SelectionDAG &DAG) const {
-  int FI = cast<FrameIndexSDNode>(Op)->getIndex();
-  return DAG.getTargetFrameIndex(FI, Op.getValueType());
-}
 
 SDValue SRRArchTargetLowering::LowerGlobalAddress(SDValue Op,
                                                   SelectionDAG &DAG) const {

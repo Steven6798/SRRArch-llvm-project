@@ -53,6 +53,7 @@ private:
   // Support functions for the opcodes of Instruction Selection
   // not handled by the auto-generated tablgen
   void selectConstant(SDNode *N);
+  void selectFrameIndex(SDNode *N);
 
   // Complex Pattern for address selection.
   bool selectAddrRi(SDValue Addr, SDValue &Src, SDValue &Offset);
@@ -91,6 +92,9 @@ void SRRArchDAGToDAGISel::Select(SDNode *Node) {
   switch (Node->getOpcode()) {
   case ISD::Constant:
     selectConstant(Node);
+    return;
+  case ISD::FrameIndex:
+    selectFrameIndex(Node);
     return;
   default:
     break;
@@ -136,6 +140,21 @@ void SRRArchDAGToDAGISel::selectConstant(SDNode *Node) {
 
     ReplaceNode(Node, GENINT);
   }
+}
+
+// Instruction like COPYs cannot access FrameIndex or TargetFrameIndex directly,
+// so use a MOV if no instruction in tablegen selected the value.
+void SRRArchDAGToDAGISel::selectFrameIndex(SDNode *Node) {
+  SDLoc DL(Node);
+  int FI = cast<FrameIndexSDNode>(Node)->getIndex();
+  EVT VT = Node->getValueType(0);
+  SDValue TFI = CurDAG->getTargetFrameIndex(FI, VT);
+  unsigned Opc = SRRArch::MOV;
+  if (Node->hasOneUse()) {
+    CurDAG->SelectNodeTo(Node, Opc, VT, TFI);
+    return;
+  }
+  ReplaceNode(Node, CurDAG->getMachineNode(Opc, DL, VT, TFI));
 }
 
 bool SRRArchDAGToDAGISel::selectAddrRi(SDValue Addr, SDValue &Src,
