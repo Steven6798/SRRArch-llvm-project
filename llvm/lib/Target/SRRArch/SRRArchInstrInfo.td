@@ -334,5 +334,5 @@ def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
   let Inst{7 - 0}   = MOV_OPC; // Opcode
   let Inst{12 - 8}  = Rd;      // Destination Register
   let Inst{17 - 13} = Rs1;     // Source Register 1
-  let Inst{63 - 17} = 0;       // Reserved
+  let Inst{63 - 18} = 0;       // Reserved
 }
