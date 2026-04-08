@@ -54,6 +54,12 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
   }
 
+  for (MVT VT : MVT::integer_valuetypes()) {
+    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
+  }
+
   // Function alignments
   setMinFunctionAlignment(Align(8));
   setPrefFunctionAlignment(Align(8));
