@@ -122,9 +122,10 @@ defvar RETURN_OPC  = 0x25;
 defvar CALL_OPC    = 0x26;
 defvar CALLREG_OPC = 0x27;
 defvar BRCOND_OPC  = 0x28;
-defvar BR_OPC      = 0x29; // Keep this opcode in sync with the linker
+defvar BR_OPC      = 0x29;
 defvar GENINT_OPC  = 0x2a;
 defvar MOV_OPC     = 0x2b;
+defvar SELECT_OPC  = 0x2c;
 
 // -------------------------------------------------------------------------- //
 // Instructions
@@ -328,6 +329,7 @@ def GENINT : InstSRRArch<(outs GPR:$Rd), (ins i64lo32z:$Imm), "GENINT $Rd, $Imm"
 }
 
 def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
+  let isMoveReg = 1;
   bits<5> Rd;
   bits<5> Rs1;
 
@@ -335,4 +337,21 @@ def MOV : InstSRRArch<(outs GPR:$Rd), (ins GPR:$Rs1), "MOV $Rd, $Rs1", []> {
   let Inst{12 - 8}  = Rd;      // Destination Register
   let Inst{17 - 13} = Rs1;     // Source Register 1
   let Inst{63 - 18} = 0;       // Reserved
+}
+
+def SELECT : InstSRRArch<(outs GPR:$Rd),
+                         (ins GPR:$RC, GPR:$RT, GPR:$RF),
+                         "SELECT $Rd, $RC, $RT, $RF",
+                         [(set GPR:$Rd, (select GPR:$RC, GPR:$RT, GPR:$RF))]> {
+  bits<5> Rd;
+  bits<5> RC;
+  bits<5> RT;
+  bits<5> RF;
+
+  let Inst{7 - 0}   = SELECT_OPC; // Opcode
+  let Inst{12 - 8}  = Rd;         // Destination Register
+  let Inst{17 - 13} = RC;         // Condition Register
+  let Inst{22 - 18} = RT;         // True Source
+  let Inst{27 - 23} = RF;         // False Source
+  let Inst{63 - 28} = 0;          // Reserved
 }
