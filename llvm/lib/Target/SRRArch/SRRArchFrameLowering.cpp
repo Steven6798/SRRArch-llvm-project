@@ -16,6 +16,7 @@
 #include "SRRArchSubtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 
 using namespace llvm;
 
@@ -170,6 +171,7 @@ void SRRArchFrameLowering::determineCalleeSaves(MachineFunction &MF,
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   int Offset = -8;
 
   // Reserve 8 bytes for the saved RA
@@ -178,7 +180,56 @@ void SRRArchFrameLowering::determineCalleeSaves(MachineFunction &MF,
 
   // Reserve 8 bytes for the saved FP
   MFI.CreateFixedObject(8, Offset, true);
-  Offset -= 8;
+
+  // Create an emergency spill slot for the scavenger.
+  // Use the largest register class (GPR) size and alignment.
+  const TargetRegisterClass *RC = &SRRArch::GPRRegClass;
+  unsigned size = TRI->getSpillSize(*RC);
+  Align align = TRI->getSpillAlign(*RC);
+  RS->addScavengingFrameIndex(MFI.CreateSpillStackObject(size, align));
+}
+
+bool SRRArchFrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+  if (CSI.empty())
+    return true;
+
+  MachineFunction *MF = MBB.getParent();
+  const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+  DebugLoc DL;
+  if (MI != MBB.end() && !MI->isDebugInstr())
+    DL = MI->getDebugLoc();
+
+  for (auto &CS : CSI) {
+    // Insert the spill to the stack frame.
+    MCRegister Reg = CS.getReg();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.storeRegToStackSlot(MBB, MI, Reg, true, CS.getFrameIdx(), RC,
+                            Register());
+  }
+
+  return true;
+}
+
+bool SRRArchFrameLowering::restoreCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+  if (CSI.empty())
+    return false;
+
+  MachineFunction &MF = *MBB.getParent();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  DebugLoc DL = (MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc());
+
+  for (auto &CS : CSI) {
+    MCRegister Reg = CS.getReg();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.loadRegFromStackSlot(MBB, MBBI, Reg, CS.getFrameIdx(), RC, Register());
+    assert(MBBI != MBB.begin() &&
+           "loadRegFromStackSlot didn't insert any code!");
+  }
+  return true;
 }
 
 MachineBasicBlock::iterator SRRArchFrameLowering::eliminateCallFramePseudoInstr(
