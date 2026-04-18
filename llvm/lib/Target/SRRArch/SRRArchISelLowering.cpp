@@ -50,6 +50,13 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SDIVREM, MVT::i64, Expand);
   setOperationAction(ISD::UDIVREM, MVT::i64, Expand);
 
+  setOperationAction(ISD::SELECT_CC, MVT::i64, Expand);
+
+  setOperationAction(ISD::MULHS, MVT::i64, Expand);
+  setOperationAction(ISD::MULHU, MVT::i64, Expand);
+  setOperationAction(ISD::SMUL_LOHI, MVT::i64, Expand);
+  setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
+
   for (MVT VT : MVT::integer_valuetypes()) {
     setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
   }
