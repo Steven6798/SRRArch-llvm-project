@@ -67,11 +67,19 @@ def imm12 : Operand<i64>, PatLeaf<(imm), [{
   let ParserMatchClass = Imm12AsmOperand;
 }
 
-def BrTargetAsmOperand : AsmOperandClass {
-  let Name = "BrTarget";
-}
-def BrTarget   : Operand<OtherVT> {
+def BrTargetAsmOperand : AsmOperandClass { let Name = "BrTarget"; }
+def BrTarget : Operand<OtherVT> {
   let ParserMatchClass = BrTargetAsmOperand;
+  let EncoderMethod = "getBranchTargetOpValue";
+  let DecoderMethod = "decodeBranch";
+}
+
+def CallTargetAsmOperand : AsmOperandClass { let Name = "CallTarget"; }
+def CallTarget : Operand<i64>, PatLeaf<(i64 imm), [{
+    // i64lo32 predicate - true if the 64-bit immediate has only rightmost 32
+    // bits set.
+    return ((N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
+  let ParserMatchClass = CallTargetAsmOperand;
   let EncoderMethod = "getBranchTargetOpValue";
   let DecoderMethod = "decodeBranch";
 }
@@ -268,7 +276,7 @@ let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R3], Uses = [R4] in {
 }
 
 let isCall = 1, Uses = [R1], Defs = [R4] in {
-  def CALL : InstSRRArch<(outs), (ins i64lo32z:$Addr), "CALL $Addr",
+  def CALL : InstSRRArch<(outs), (ins CallTarget:$Addr), "CALL $Addr",
                          [(SRRArchCALL tglobaladdr:$Addr)]> {
     bits<32> Addr;
 

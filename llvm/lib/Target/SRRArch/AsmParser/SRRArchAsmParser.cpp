@@ -162,27 +162,28 @@ public:
     if (!isImm())
       return false;
 
-    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (!ConstExpr)
-      return false;
-
-    return isUInt<32>(ConstExpr->getValue());
-  }
-
-  bool isBrImm() {
-    if (!isImm())
-      return false;
-
     // Constant case
-    const MCConstantExpr *MCE = dyn_cast<MCConstantExpr>(Imm.Value);
-    if (!MCE)
+    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value)) {
+      int64_t Value = ConstExpr->getValue();
+      // Check if value fits in 32 bits
+      return isUInt<32>(Value);
+    }
+
+    // Symbolic reference expression
+    if (isa<MCSpecifierExpr>(Imm.Value))
       return true;
-    int64_t Value = MCE->getValue();
-    // Check if value fits in 32 bits.
-    return isUInt<32>(Value);
+
+    // Binary expression
+    if (const MCBinaryExpr *BinaryExpr = dyn_cast<MCBinaryExpr>(Imm.Value))
+      if (isa<MCSpecifierExpr>(BinaryExpr->getLHS()))
+        return true;
+
+    return false;
   }
 
-  bool isBrTarget() { return isBrImm() || isToken(); }
+  bool isBrTarget() { return isLoImm32() || isToken(); }
+
+  bool isCallTarget() { return isLoImm32() || isToken(); }
 
   void addExpr(MCInst &Inst, const MCExpr *Expr) const {
     // Add as immediates where possible. Null MCExpr = 0
@@ -218,6 +219,11 @@ public:
   }
 
   void addBrTargetOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    addExpr(Inst, getImm());
+  }
+
+  void addCallTargetOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     addExpr(Inst, getImm());
   }
