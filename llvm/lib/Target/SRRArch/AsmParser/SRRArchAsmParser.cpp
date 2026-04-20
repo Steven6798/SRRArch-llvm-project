@@ -214,6 +214,8 @@ public:
     assert(N == 1 && "Invalid number of operands!");
     if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
       Inst.addOperand(MCOperand::createImm(ConstExpr->getValue()));
+    else if (isa<MCSpecifierExpr>(getImm()) || isa<MCBinaryExpr>(getImm()))
+      Inst.addOperand(MCOperand::createExpr(getImm()));
     else
       assert(false && "Operand type not supported.");
   }
