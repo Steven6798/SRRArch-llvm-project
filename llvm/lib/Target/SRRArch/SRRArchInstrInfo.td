@@ -59,11 +59,17 @@ def i64lo32z : Operand<i64>, PatLeaf<(i64 imm), [{
     return ((N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
 }
 
+def Imm12AsmOperand : AsmOperandClass { let Name = "Imm12"; }
 def imm12 : Operand<i64>, PatLeaf<(imm), [{
     return isInt<12>(N->getSExtValue()); }]> {
+  let ParserMatchClass = Imm12AsmOperand;
 }
 
+def BrTargetAsmOperand : AsmOperandClass {
+  let Name = "BrTarget";
+}
 def BrTarget   : Operand<OtherVT> {
+  let ParserMatchClass = BrTargetAsmOperand;
   let EncoderMethod = "getBranchTargetOpValue";
   let DecoderMethod = "decodeBranch";
 }
