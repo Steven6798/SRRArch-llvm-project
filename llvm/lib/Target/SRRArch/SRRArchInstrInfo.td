@@ -53,10 +53,12 @@ def LO32 : SDNodeXForm<imm, [{
                                    SDLoc(N), MVT::i64);
 }]>;
 
+def LoImm32AsmOperand : AsmOperandClass { let Name = "LoImm32"; }
 def i64lo32z : Operand<i64>, PatLeaf<(i64 imm), [{
     // i64lo32 predicate - true if the 64-bit immediate has only rightmost 32
     // bits set.
     return ((N->getZExtValue() & 0xFFFFFFFFUL) == N->getZExtValue());}], LO32> {
+    let ParserMatchClass = LoImm32AsmOperand;
 }
 
 def Imm12AsmOperand : AsmOperandClass { let Name = "Imm12"; }
@@ -76,10 +78,15 @@ def BrTarget   : Operand<OtherVT> {
 
 def ADDRri : ComplexPattern<i64, 2, "selectAddrRi", [frameindex], []>;
 
+def MemAsmOperand : AsmOperandClass {
+  let Name = "Mem";
+  let ParserMethod  = "parseMemoryOperand";
+}
 def MEMri : Operand<i64> {
   let DecoderMethod = "decodeRiMemoryValue";
   let EncoderMethod = "getRiMemoryOpValue";
   let MIOperandInfo = (ops GPR:$base, imm12:$offset);
+  let ParserMatchClass = MemAsmOperand;
   let PrintMethod   = "printMemRiOperand";
 }
 

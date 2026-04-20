@@ -71,9 +71,7 @@ struct SRRArchOperand : public MCParsedAsmOperand {
     TOKEN,
     REGISTER,
     IMMEDIATE,
-    MEMORY_IMM,
-    MEMORY_REG_IMM,
-    MEMORY_REG_REG,
+    MEMORY,
   } Kind;
 
   SMLoc StartLoc, EndLoc;
@@ -93,8 +91,6 @@ struct SRRArchOperand : public MCParsedAsmOperand {
 
   struct MemOp {
     MCRegister BaseReg;
-    MCRegister OffsetReg;
-    unsigned AluOp;
     const MCExpr *Offset;
   };
 
@@ -137,19 +133,9 @@ public:
     return Mem.BaseReg;
   }
 
-  MCRegister getMemOffsetReg() const {
-    assert(isMem() && "Invalid type access!");
-    return Mem.OffsetReg;
-  }
-
   const MCExpr *getMemOffset() const {
     assert(isMem() && "Invalid type access!");
     return Mem.Offset;
-  }
-
-  unsigned getMemOp() const {
-    assert(isMem() && "Invalid type access!");
-    return Mem.AluOp;
   }
 
   // Functions for testing operand type
@@ -157,17 +143,7 @@ public:
 
   bool isImm() const override { return Kind == IMMEDIATE; }
 
-  bool isMem() const override {
-    return isMemImm() || isMemRegImm() || isMemRegReg();
-  }
-
-  bool isMemImm() const { return Kind == MEMORY_IMM; }
-
-  bool isMemRegImm() const { return Kind == MEMORY_REG_IMM; }
-
-  bool isMemRegReg() const { return Kind == MEMORY_REG_REG; }
-
-  bool isMemSpls() const { return isMemRegImm() || isMemRegReg(); }
+  bool isMem() const override { return Kind == MEMORY; }
 
   bool isToken() const override { return Kind == TOKEN; }
 
@@ -178,8 +154,19 @@ public:
     const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
     if (!ConstExpr)
       return false;
-    int64_t Value = ConstExpr->getValue();
-    return isInt<12>(Value);
+
+    return isInt<12>(ConstExpr->getValue());
+  }
+
+  bool isLoImm32() {
+    if (!isImm())
+      return false;
+
+    const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Value);
+    if (!ConstExpr)
+      return false;
+
+    return isUInt<32>(ConstExpr->getValue());
   }
 
   bool isBrImm() {
@@ -222,13 +209,43 @@ public:
     addExpr(Inst, getImm());
   }
 
+  void addLoImm32Operands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    if (const MCConstantExpr *ConstExpr = dyn_cast<MCConstantExpr>(getImm()))
+      Inst.addOperand(MCOperand::createImm(ConstExpr->getValue()));
+    else
+      assert(false && "Operand type not supported.");
+  }
+
   void addBrTargetOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     addExpr(Inst, getImm());
   }
 
+  void addMemOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 2 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getMemBaseReg()));
+    const MCExpr *Expr = getMemOffset();
+    addExpr(Inst, Expr);
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
-    llvm_unreachable("print not implemented yet");
+    switch (Kind) {
+    case IMMEDIATE:
+      OS << "Imm: " << getImm() << "\n";
+      break;
+    case TOKEN:
+      OS << "Token: " << getToken() << "\n";
+      break;
+    case REGISTER:
+      OS << "Reg: %r" << getReg().id() << "\n";
+      break;
+    case MEMORY:
+      OS << "Mem: " << getMemBaseReg().id() << "+";
+      MAI.printExpr(OS, *getMemOffset());
+      OS << '\n';
+      break;
+    }
   }
 
   static std::unique_ptr<SRRArchOperand> CreateToken(StringRef Str, SMLoc Start,
@@ -256,6 +273,15 @@ public:
     Op->Imm.Value = Value;
     Op->StartLoc = Start;
     Op->EndLoc = End;
+    return Op;
+  }
+
+  static std::unique_ptr<SRRArchOperand>
+  MorphToMem(MCRegister BaseReg, std::unique_ptr<SRRArchOperand> Op) {
+    const MCExpr *Imm = Op->getImm();
+    Op->Kind = MEMORY;
+    Op->Mem.BaseReg = BaseReg;
+    Op->Mem.Offset = Imm;
     return Op;
   }
 };
@@ -338,7 +364,30 @@ ParseStatus SRRArchAsmParser::tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
 }
 
 std::unique_ptr<SRRArchOperand> SRRArchAsmParser::parseIdentifier() {
-  llvm_unreachable("parseIdentifier not implemented yet");
+  SMLoc Start = Parser.getTok().getLoc();
+  SMLoc End = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+  const MCExpr *Res, *RHS = nullptr;
+
+  if (Lexer.getKind() != AsmToken::Identifier)
+    return nullptr;
+
+  StringRef Identifier;
+  if (Parser.parseIdentifier(Identifier))
+    return nullptr;
+
+  // If addition parse the RHS.
+  if (Lexer.getKind() == AsmToken::Plus && Parser.parseExpression(RHS))
+    return nullptr;
+
+  End = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+  MCSymbol *Sym = getContext().getOrCreateSymbol(Identifier);
+  Res = MCSpecifierExpr::create(Sym, SRRArch::S_None, getContext());
+
+  // Nest if this was an addition
+  if (RHS)
+    Res = MCBinaryExpr::createAdd(Res, RHS, getContext());
+
+  return SRRArchOperand::CreateImm(Res, Start, End);
 
   return nullptr;
 }
@@ -362,9 +411,31 @@ std::unique_ptr<SRRArchOperand> SRRArchAsmParser::parseImmediate() {
 
 // Matches memory operand. Returns true if error encountered.
 ParseStatus SRRArchAsmParser::parseMemoryOperand(OperandVector &Operands) {
-  llvm_unreachable("parseMemoryOperand not implemented yet");
+  // Try to parse the base
+  std::unique_ptr<SRRArchOperand> Reg = parseRegister();
+  // If the token could not be parsed then fail
+  if (!Reg) {
+    Error(Parser.getTok().getLoc(), "Unknown operand");
+    Parser.eatToEndOfStatement();
+    return ParseStatus::NoMatch;
+  }
 
-  return ParseStatus::Failure;
+  // Consume the comma
+  Lex();
+
+  std::unique_ptr<SRRArchOperand> Offset = parseImmediate();
+  // If the token could not be parsed then fail
+  if (!Offset) {
+    Error(Parser.getTok().getLoc(), "Unknown operand");
+    Parser.eatToEndOfStatement();
+    return ParseStatus::NoMatch;
+  }
+
+  // Push back parsed operand into list of operands
+  Operands.push_back(
+      SRRArchOperand::MorphToMem(Reg->getReg(), std::move(Offset)));
+
+  return ParseStatus::Success;
 }
 
 // Looks at a token type and creates the relevant operand from this
@@ -374,14 +445,14 @@ ParseStatus SRRArchAsmParser::parseOperand(OperandVector *Operands,
                                            StringRef Mnemonic) {
   // Check if the current operand has a custom associated parser, if so, try to
   // custom parse the operand, or fallback to the general approach.
-  // ParseStatus Result = MatchOperandParserImpl(*Operands, Mnemonic);
+  ParseStatus Result = MatchOperandParserImpl(*Operands, Mnemonic);
 
-  // if (Result.isSuccess())
-  //   return Result;
-  // if (Result.isFailure()) {
-  //   Parser.eatToEndOfStatement();
-  //   return Result;
-  // }
+  if (Result.isSuccess())
+    return Result;
+  if (Result.isFailure()) {
+    Parser.eatToEndOfStatement();
+    return Result;
+  }
 
   // Attempt to parse token as register
   std::unique_ptr<SRRArchOperand> Op = parseRegister();
