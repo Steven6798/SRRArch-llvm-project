@@ -238,10 +238,10 @@ public:
       OS << "Token: " << getToken() << "\n";
       break;
     case REGISTER:
-      OS << "Reg: %r" << getReg().id() << "\n";
+      OS << "Reg: R" << getReg().id() << "\n";
       break;
     case MEMORY:
-      OS << "Mem: " << getMemBaseReg().id() << "+";
+      OS << "Mem: R" << getMemBaseReg().id() << " + ";
       MAI.printExpr(OS, *getMemOffset());
       OS << '\n';
       break;
@@ -400,6 +400,7 @@ std::unique_ptr<SRRArchOperand> SRRArchAsmParser::parseImmediate() {
   switch (Lexer.getKind()) {
   case AsmToken::Identifier:
     return parseIdentifier();
+  case AsmToken::Minus:
   case AsmToken::Integer:
     if (!Parser.parseExpression(ExprVal))
       return SRRArchOperand::CreateImm(ExprVal, Start, End);
