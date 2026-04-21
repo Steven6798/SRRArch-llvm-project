@@ -27,10 +27,9 @@ SRRArchMCAsmInfo::SRRArchMCAsmInfo(const Triple & /*TheTriple*/,
   // Target supports emission of debugging information.
   SupportsDebugInformation = true;
 
-  Data8bitsDirective = "\t.8bit\t";
-  Data16bitsDirective = "\t.16bit\t";
-  Data32bitsDirective = "\t.32bit\t";
-  Data64bitsDirective = "\t.64bit\t";
+  Data16bitsDirective = "\t.2byte\t";
+  Data32bitsDirective = "\t.4byte\t";
+  Data64bitsDirective = "\t.8byte\t";
   MinInstAlignment = 8;
   MaxInstLength = 8;
 }
