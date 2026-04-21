@@ -25,6 +25,11 @@ namespace llvm {
 class SRRArchMachineFunctionInfo : public MachineFunctionInfo {
   virtual void anchor();
 
+  // SRetReturnReg - SRRArch ABI require that sret lowering includes
+  // returning the value of the returned struct in a register. This field
+  // holds the virtual register into which the sret argument is passed.
+  Register SRetReturnReg;
+
 public:
   SRRArchMachineFunctionInfo(const Function &F,
                              const TargetSubtargetInfo *STI) {}
@@ -32,6 +37,9 @@ public:
   clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
         const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
       const override;
+
+  Register getSRetReturnReg() const { return SRetReturnReg; }
+  void setSRetReturnReg(Register Reg) { SRetReturnReg = Reg; }
 };
 
 } // namespace llvm

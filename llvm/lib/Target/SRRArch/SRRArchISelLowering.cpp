@@ -134,8 +134,7 @@ SDValue SRRArchTargetLowering::LowerFormalArguments(
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
-  // SRRArchMachineFunctionInfo *SMFI =
-  // MF.getInfo<SRRArchMachineFunctionInfo>();
+  SRRArchMachineFunctionInfo *SMFI = MF.getInfo<SRRArchMachineFunctionInfo>();
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
@@ -196,8 +195,17 @@ SDValue SRRArchTargetLowering::LowerFormalArguments(
     }
   }
 
+  // The SRRArch ABI for returning structs by value requires that we copy
+  // the sret argument into rv for the return. Save the argument into
+  // a virtual register so that we can access it from the return points.
   if (MF.getFunction().hasStructRetAttr()) {
-    llvm_unreachable("StructRet argument type not supported yet");
+    Register Reg = SMFI->getSRetReturnReg();
+    if (!Reg) {
+      Reg = MF.getRegInfo().createVirtualRegister(getRegClassFor(MVT::i64));
+      SMFI->setSRetReturnReg(Reg);
+    }
+    SDValue Copy = DAG.getCopyToReg(DAG.getEntryNode(), DL, Reg, InVals[0]);
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Copy, Chain);
   }
 
   if (IsVarArg) {
