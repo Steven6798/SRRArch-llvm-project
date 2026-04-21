@@ -67,6 +67,13 @@ SRRArchTargetLowering::SRRArchTargetLowering(const TargetMachine &TM,
     setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
   }
 
+  // Always lower memset, memcpy, and memmove intrinsics to load/store
+  // instructions, rather then generating calls to memset, mempcy or memmove.
+  // This is until we can compile libraries
+  MaxStoresPerMemset = MaxStoresPerMemsetOptSize = ~0U;
+  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = ~0U;
+  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = ~0U;
+
   // Function alignments
   setMinFunctionAlignment(Align(8));
   setPrefFunctionAlignment(Align(8));
