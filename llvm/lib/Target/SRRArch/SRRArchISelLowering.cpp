@@ -233,7 +233,7 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState ArgCCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs,
                     *DAG.getContext());
-  // MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
+  MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
 
   if (IsVarArg) {
     ArgCCInfo.AnalyzeCallOperands(Outs, CC_SRRArch_VarArg);
@@ -251,7 +251,20 @@ SRRArchTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     if (!Flags.isByVal())
       continue;
 
-    llvm_unreachable("function call byval arguments not supported yet");
+    SDValue Arg = OutVals[I];
+    unsigned Size = Flags.getByValSize();
+    Align Alignment = Flags.getNonZeroByValAlign();
+
+    int FI = MFI.CreateStackObject(Size, Alignment, false);
+    SDValue FIPtr = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+    SDValue SizeNode = DAG.getConstant(Size, DL, MVT::i64);
+
+    Chain = DAG.getMemcpy(Chain, DL, FIPtr, Arg, SizeNode, Alignment,
+                          /*IsVolatile=*/false,
+                          /*AlwaysInline=*/false,
+                          /*CI=*/nullptr, std::nullopt, MachinePointerInfo(),
+                          MachinePointerInfo());
+    ByValArgs.push_back(FIPtr);
   }
 
   Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
