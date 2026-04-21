@@ -89,7 +89,7 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     Offset = -Offset;
   }
 
-  if (isUInt<12>(Offset)) {
+  if (isInt<12>(Offset)) {
     unsigned Opc = HasNegOffset ? SRRArch::SUBI : SRRArch::ADDI;
     BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
         .addReg(FrameReg)

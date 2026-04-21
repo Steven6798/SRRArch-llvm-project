@@ -112,7 +112,7 @@ void SRRArchFrameLowering::emitPrologue(MachineFunction &MF,
 
   // Allocate remaining stack space for locals and callee-saved
   if (StackSize > 0) {
-    if (isUInt<12>(StackSize)) {
+    if (isInt<12>(StackSize)) {
       BuildMI(MBB, MBBI, DL, SII.get(SRRArch::SUBI), SP)
           .addReg(SP)
           .addImm(StackSize)
