@@ -27,13 +27,8 @@ public:
 
   void computeInfo(CGFunctionInfo &FI) const override {
     CCState State;
-    // SRRArch uses 4 registers to pass arguments unless the function has the
-    // regparm attribute set.
-    if (FI.getHasRegParm()) {
-      State.FreeRegs = FI.getRegParm();
-    } else {
-      State.FreeRegs = 4;
-    }
+    // SRRArch uses 4 registers to pass arguments
+    State.FreeRegs = 4;
 
     if (!getCXXABI().classifyReturnType(FI))
       FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
@@ -49,10 +44,6 @@ public:
 ABIArgInfo SRRArchABIInfo::getIndirectResult(QualType Ty, bool ByVal,
                                              CCState &State) const {
   if (!ByVal) {
-    if (State.FreeRegs) {
-      --State.FreeRegs; // Non-byval indirects just use one pointer.
-      return getNaturalAlignIndirectInReg(Ty);
-    }
     return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace(),
                                    false);
   }
@@ -115,6 +106,9 @@ ABIArgInfo SRRArchABIInfo::classifyArgumentType(QualType Ty,
 
   if (isPromotableIntegerTypeForABI(Ty))
     return ABIArgInfo::getExtend(Ty);
+
+  if (State.FreeRegs)
+    --State.FreeRegs;
 
   return ABIArgInfo::getDirect();
 }
