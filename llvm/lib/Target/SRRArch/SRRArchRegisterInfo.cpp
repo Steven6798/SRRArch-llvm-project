@@ -82,43 +82,40 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (FrameIndex >= 0 && hasStackRealignment(MF))
     FrameReg = getStackRegister();
 
-  unsigned BaseReg = 0;
-  // If the offset is 12-bits long then use a faster path.
+  // If the offset fits in the immediate field of load or store and the
+  // current value is 0 then use it.
+  unsigned MIOpc = MI.getOpcode();
+  if (isInt<12>(Offset) &&
+      ((isLoad(MIOpc) || isStore(MIOpc)) && !MI.getOperand(2).getImm())) {
+    MI.getOperand(2).setImm(Offset);
+    MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false, false, true);
+    return false;
+  }
+
+  bool HasNegOffset = false;
+  if (Offset < 0) {
+    HasNegOffset = true;
+    Offset = -Offset;
+  }
+
+  Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
+  // If the offset is 12-bits long, then use ADDI or SUBI.
   if (isInt<12>(Offset)) {
-    // If the offset fits in the immediate field of load or store and the
-    // current value is 0 then use it. Every other case use ADDI or SUBI.
-    unsigned MIOpc = MI.getOpcode();
-    if ((isLoad(MIOpc) || isStore(MIOpc)) && !MI.getOperand(2).getImm()) {
-      MI.getOperand(2).setImm(Offset);
-      BaseReg = FrameReg;
-    } else {
-      Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
-      unsigned Opc = SRRArch::ADDI;
-      if (Offset < 0) {
-        Opc = SRRArch::SUBI;
-        Offset = -Offset;
-      }
-      BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
-          .addReg(FrameReg)
-          .addImm(Offset);
-      BaseReg = ScratchReg;
-    }
+    unsigned Opc = HasNegOffset ? SRRArch::SUBI : SRRArch::ADDI;
+    BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
+        .addReg(FrameReg)
+        .addImm(Offset);
+
   } else {
-    Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
     BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
 
-    unsigned Opc = SRRArch::ADD;
-    if (Offset < 0) {
-      Opc = SRRArch::SUB;
-      Offset = -Offset;
-    }
+    unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
     BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
         .addReg(FrameReg)
         .addReg(ScratchReg);
-    BaseReg = ScratchReg;
   }
 
-  MI.getOperand(FIOperandNum).ChangeToRegister(BaseReg, false, false, true);
+  MI.getOperand(FIOperandNum).ChangeToRegister(ScratchReg, false, false, true);
   return false;
 }
 
