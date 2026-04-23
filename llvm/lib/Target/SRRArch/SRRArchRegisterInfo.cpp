@@ -82,12 +82,6 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (FrameIndex >= 0 && hasStackRealignment(MF))
     FrameReg = getStackRegister();
 
-  bool HasNegOffset = false;
-  if (Offset < 0) {
-    HasNegOffset = true;
-    Offset = -Offset;
-  }
-
   unsigned BaseReg = 0;
   // If the offset is 12-bits long then use a faster path.
   if (isInt<12>(Offset)) {
@@ -99,7 +93,11 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       BaseReg = FrameReg;
     } else {
       Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
-      unsigned Opc = HasNegOffset ? SRRArch::SUBI : SRRArch::ADDI;
+      unsigned Opc = SRRArch::ADDI;
+      if (Offset < 0) {
+        Opc = SRRArch::SUBI;
+        Offset = -Offset;
+      }
       BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
           .addReg(FrameReg)
           .addImm(Offset);
@@ -109,7 +107,11 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
     BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
 
-    unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
+    unsigned Opc = SRRArch::ADD;
+    if (Offset < 0) {
+      Opc = SRRArch::SUB;
+      Offset = -Offset;
+    }
     BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
         .addReg(FrameReg)
         .addReg(ScratchReg);
