@@ -129,6 +129,33 @@ public:
                         int *BytesAdded = nullptr) const override;
 };
 
+static inline bool isLoad(unsigned Opcode) {
+  switch (Opcode) {
+  case SRRArch::LOADBZ:
+  case SRRArch::LOADBS:
+  case SRRArch::LOADHZ:
+  case SRRArch::LOADHS:
+  case SRRArch::LOADWZ:
+  case SRRArch::LOADWS:
+  case SRRArch::LOAD:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static inline bool isStore(unsigned Opc) {
+  switch (Opc) {
+  case SRRArch::STOREB:
+  case SRRArch::STOREH:
+  case SRRArch::STOREW:
+  case SRRArch::STORE:
+    return true;
+  default:
+    return false;
+  }
+}
+
 } // namespace llvm
 
 #endif // LLVM_LIB_TARGET_SRRARCH_SRRARCHINSTRINFO_H

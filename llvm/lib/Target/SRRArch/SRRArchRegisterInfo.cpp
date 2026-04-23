@@ -64,7 +64,7 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineFunction &MF = *MI.getParent()->getParent();
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-  MachineRegisterInfo &RI = MBB.getParent()->getRegInfo();
+  MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
   bool HasFP = TFI->hasFP(MF);
   DebugLoc DL = MI.getDebugLoc();
 
@@ -82,30 +82,41 @@ bool SRRArchRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (FrameIndex >= 0 && hasStackRealignment(MF))
     FrameReg = getStackRegister();
 
-  Register ScratchReg = RI.createVirtualRegister(&SRRArch::GPRRegClass);
   bool HasNegOffset = false;
   if (Offset < 0) {
     HasNegOffset = true;
     Offset = -Offset;
   }
 
+  unsigned BaseReg = 0;
+  // If the offset is 12-bits long then use a faster path.
   if (isInt<12>(Offset)) {
-    unsigned Opc = HasNegOffset ? SRRArch::SUBI : SRRArch::ADDI;
-    BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
-        .addReg(FrameReg)
-        .addImm(Offset);
+    // If the offset fits in the immediate field of load or store and the
+    // current value is 0 then use it. Every other case use ADDI or SUBI.
+    unsigned MIOpc = MI.getOpcode();
+    if ((isLoad(MIOpc) || isStore(MIOpc)) && !MI.getOperand(2).getImm()) {
+      MI.getOperand(2).setImm(Offset);
+      BaseReg = FrameReg;
+    } else {
+      Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
+      unsigned Opc = HasNegOffset ? SRRArch::SUBI : SRRArch::ADDI;
+      BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
+          .addReg(FrameReg)
+          .addImm(Offset);
+      BaseReg = ScratchReg;
+    }
   } else {
+    Register ScratchReg = MRI.createVirtualRegister(&SRRArch::GPRRegClass);
     BuildMI(MBB, II, DL, TII->get(SRRArch::GENINT), ScratchReg).addImm(Offset);
 
     unsigned Opc = HasNegOffset ? SRRArch::SUB : SRRArch::ADD;
     BuildMI(MBB, II, DL, TII->get(Opc), ScratchReg)
         .addReg(FrameReg)
         .addReg(ScratchReg);
+    BaseReg = ScratchReg;
   }
 
-  MI.getOperand(FIOperandNum)
-      .ChangeToRegister(ScratchReg, /*isDef=*/false, /*isImp=*/false,
-                        /*isKill=*/true);
+  MI.getOperand(FIOperandNum).ChangeToRegister(BaseReg, false, false, true);
   return false;
 }
 
