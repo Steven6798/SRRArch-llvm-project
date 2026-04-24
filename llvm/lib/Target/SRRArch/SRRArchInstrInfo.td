@@ -248,10 +248,11 @@ defm LOADWZ : LoadBase<LOADWZ_OPC, "LOADWZ", zextloadi32>;
 defm LOADWS : LoadBase<LOADWS_OPC, "LOADWS", sextloadi32>;
 defm LOAD   : LoadBase<LOAD_OPC, "LOAD", load>;
 
-// extload -> zextload
-def : Pat<(extloadi8 ADDRri:$Rs1), (LOADBZ MEMri:$Rs1)>;
-def : Pat<(extloadi16 ADDRri:$Rs1), (LOADHZ MEMri:$Rs1)>;
-def : Pat<(extloadi32 ADDRri:$Rs1), (LOADWZ MEMri:$Rs1)>;
+// extload -> sextload. SRRArch instructions are 64-bit so we need the correct
+// sign
+def : Pat<(extloadi8 ADDRri:$Rs1), (LOADBS MEMri:$Rs1)>;
+def : Pat<(extloadi16 ADDRri:$Rs1), (LOADHS MEMri:$Rs1)>;
+def : Pat<(extloadi32 ADDRri:$Rs1), (LOADWS MEMri:$Rs1)>;
 
 multiclass StoreBase<bits<8> Opc, string AsmStr, PatFrag OpNode> {
   def "" : InstrST<Opc, (outs), (ins GPR:$Rs1, MEMri:$Src),
