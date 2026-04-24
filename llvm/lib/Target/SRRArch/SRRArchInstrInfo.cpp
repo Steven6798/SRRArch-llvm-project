@@ -76,7 +76,34 @@ void SRRArchInstrInfo::loadRegFromStackSlot(
 
 bool SRRArchInstrInfo::areMemAccessesTriviallyDisjoint(
     const MachineInstr &MIa, const MachineInstr &MIb) const {
-  llvm_unreachable("areMemAccessesTriviallyDisjoint not implemented yet");
+  assert(MIa.mayLoadOrStore() && "MIa must be a load or store.");
+  assert(MIb.mayLoadOrStore() && "MIb must be a load or store.");
+
+  if (MIa.hasUnmodeledSideEffects() || MIb.hasUnmodeledSideEffects() ||
+      MIa.hasOrderedMemoryRef() || MIb.hasOrderedMemoryRef())
+    return false;
+
+  // Retrieve the base register, offset from the base register and width. Width
+  // is the size of memory that is being loaded/stored (e.g. 1, 2, 4, 8).  If
+  // base registers are identical, and the offset of a lower memory access +
+  // the width doesn't overlap the offset of a higher memory access,
+  // then the memory accesses are different.
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+  const MachineOperand *BaseOpA = nullptr, *BaseOpB = nullptr;
+  int64_t OffsetA = 0, OffsetB = 0;
+  LocationSize WidthA = LocationSize::precise(0),
+               WidthB = LocationSize::precise(0);
+  if (getMemOperandWithOffsetWidth(MIa, BaseOpA, OffsetA, WidthA, TRI) &&
+      getMemOperandWithOffsetWidth(MIb, BaseOpB, OffsetB, WidthB, TRI)) {
+    if (BaseOpA->isIdenticalTo(*BaseOpB)) {
+      int LowOffset = std::min(OffsetA, OffsetB);
+      int HighOffset = std::max(OffsetA, OffsetB);
+      LocationSize LowWidth = (LowOffset == OffsetA) ? WidthA : WidthB;
+      if (LowWidth.hasValue() &&
+          LowOffset + (int)LowWidth.getValue() <= HighOffset)
+        return true;
+    }
+  }
   return false;
 }
 
@@ -230,14 +257,62 @@ unsigned SRRArchInstrInfo::removeBranch(MachineBasicBlock &MBB,
 bool SRRArchInstrInfo::getMemOperandWithOffsetWidth(
     const MachineInstr &LdSt, const MachineOperand *&BaseOp, int64_t &Offset,
     LocationSize &Width, const TargetRegisterInfo * /*TRI*/) const {
-  llvm_unreachable("getMemOperandWithOffsetWidth not implemented yet");
-  return false;
+  switch (LdSt.getOpcode()) {
+  default:
+    return false;
+  case SRRArch::LOAD:
+  case SRRArch::STORE:
+    Width = LocationSize::precise(8);
+    break;
+  case SRRArch::LOADWS:
+  case SRRArch::LOADWZ:
+  case SRRArch::STOREW:
+    Width = LocationSize::precise(4);
+    break;
+  case SRRArch::LOADHS:
+  case SRRArch::LOADHZ:
+  case SRRArch::STOREH:
+    Width = LocationSize::precise(2);
+    break;
+  case SRRArch::LOADBS:
+  case SRRArch::LOADBZ:
+  case SRRArch::STOREB:
+    Width = LocationSize::precise(1);
+    break;
+  }
+
+  BaseOp = &LdSt.getOperand(1);
+  Offset = LdSt.getOperand(2).getImm();
+
+  if (!BaseOp->isReg())
+    return false;
+
+  return true;
 }
 
 bool SRRArchInstrInfo::getMemOperandsWithOffsetWidth(
     const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
     int64_t &Offset, bool &OffsetIsScalable, LocationSize &Width,
     const TargetRegisterInfo *TRI) const {
-  llvm_unreachable("getMemOperandsWithOffsetWidth not implemented yet");
-  return false;
+  switch (LdSt.getOpcode()) {
+  default:
+    return false;
+  case SRRArch::LOAD:
+  case SRRArch::STORE:
+  case SRRArch::LOADWS:
+  case SRRArch::LOADWZ:
+  case SRRArch::STOREW:
+  case SRRArch::LOADHS:
+  case SRRArch::LOADHZ:
+  case SRRArch::STOREH:
+  case SRRArch::LOADBS:
+  case SRRArch::LOADBZ:
+  case SRRArch::STOREB:
+    const MachineOperand *BaseOp;
+    OffsetIsScalable = false;
+    if (!getMemOperandWithOffsetWidth(LdSt, BaseOp, Offset, Width, TRI))
+      return false;
+    BaseOps.push_back(BaseOp);
+    return true;
+  }
 }
