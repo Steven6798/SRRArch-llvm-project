@@ -225,13 +225,40 @@ bool SRRArchInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   return false;
 }
 
-// reverseBranchCondition - Reverses the branch condition of the specified
-// condition list, returning false on success and true if it cannot be
-// reversed.
+// SRRArch does not have the condition encoded in the branch. The condition
+// can only be reversed if the we are still in SSA form, the register
+// is virtual and the branch is the only user of the condition. SInce SRRArch
+// does not have a direct opposite of greater/less than instructions, only the
+// equal and not equal conditions can be reversed.
 bool SRRArchInstrInfo::reverseBranchCondition(
     SmallVectorImpl<llvm::MachineOperand> &Condition) const {
-  llvm_unreachable("reverseBranchCondition not implemented yet");
-  return false;
+  assert((Condition.size() == 1) &&
+         "SRRArch branch conditions should have one component.");
+  MachineOperand Cond = Condition[0];
+  MachineRegisterInfo &MRI =
+      Cond.getParent()->getParent()->getParent()->getRegInfo();
+  Register Reg = Condition[0].getReg();
+  if (!MRI.isSSA() || !Reg.isVirtual() || !MRI.hasOneUse(Reg))
+    return false;
+
+  MachineInstr *Def = MRI.getVRegDef(Reg);
+  if (!Def)
+    return false;
+
+  unsigned Opc = 0;
+  switch (Def->getOpcode()) {
+  case SRRArch::CMPNE:
+    Opc = SRRArch::CMPEQ;
+    break;
+  case SRRArch::CMPEQ:
+    Opc = SRRArch::CMPNE;
+    break;
+  default:
+    return false;
+  }
+
+  Def->setDesc(get(Opc));
+  return true;
 }
 
 // Insert the branch with condition specified in condition and given targets
@@ -243,15 +270,56 @@ unsigned SRRArchInstrInfo::insertBranch(MachineBasicBlock &MBB,
                                         ArrayRef<MachineOperand> Condition,
                                         const DebugLoc &DL,
                                         int *BytesAdded) const {
-  llvm_unreachable("insertBranch not implemented yet");
-  return 0;
+  // Shouldn't be a fall through.
+  assert(TrueBlock && "insertBranch must not be told to insert a fallthrough");
+  assert(!BytesAdded && "code size not handled");
+
+  // If condition is empty then an unconditional branch is being inserted.
+  if (Condition.empty()) {
+    assert(!FalseBlock && "Unconditional branch with multiple successors!");
+    BuildMI(&MBB, DL, get(SRRArch::BR)).addMBB(TrueBlock);
+    return 1;
+  }
+
+  // Else a conditional branch is inserted.
+  assert((Condition.size() == 1) &&
+         "SRRArch branch conditions should have one component.");
+  BuildMI(&MBB, DL, get(SRRArch::BRCOND))
+      .addReg(Condition[0].getReg())
+      .addMBB(TrueBlock);
+
+  // If no false block, then false behavior is fall through and no branch needs
+  // to be inserted.
+  if (!FalseBlock)
+    return 1;
+
+  BuildMI(&MBB, DL, get(SRRArch::BR)).addMBB(FalseBlock);
+  return 2;
 }
 
 unsigned SRRArchInstrInfo::removeBranch(MachineBasicBlock &MBB,
                                         int *BytesRemoved) const {
-  llvm_unreachable("removeBranch not implemented yet");
+  assert(!BytesRemoved && "code size not handled");
 
-  return 0;
+  MachineBasicBlock::iterator Instruction = MBB.end();
+  unsigned Count = 0;
+
+  while (Instruction != MBB.begin()) {
+    --Instruction;
+    if (Instruction->isDebugInstr())
+      continue;
+    if (Instruction->getOpcode() != SRRArch::BR &&
+        Instruction->getOpcode() != SRRArch::BRCOND) {
+      break;
+    }
+
+    // Remove the branch.
+    Instruction->eraseFromParent();
+    Instruction = MBB.end();
+    ++Count;
+  }
+
+  return Count;
 }
 
 bool SRRArchInstrInfo::getMemOperandWithOffsetWidth(
